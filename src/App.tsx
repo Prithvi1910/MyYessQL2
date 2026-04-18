@@ -7,6 +7,7 @@ import InteractiveBackground from './components/InteractiveBackground';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useAuth } from './contexts/AuthContext';
+import StudentDashboard from './components/StudentDashboard';
 
 function App() {
   const { user, loading } = useAuth();
@@ -32,7 +33,7 @@ function App() {
       <Navbar 
         onLoginClick={openAuthModal}
         onRegisterClick={openAuthModal}
-        studentName={user?.name}
+        isAuthenticated={!!user}
       />
 
       <main>
@@ -47,11 +48,7 @@ function App() {
           
           <Route path="/dashboard" element={
             <ProtectedRoute>
-              <>
-                <Hero isAuthenticated={true} />
-                <Pipeline />
-                <FeatureStack />
-              </>
+              <StudentDashboard />
             </ProtectedRoute>
           } />
 
