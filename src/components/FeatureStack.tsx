@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import { Link as LinkIcon, Shield, CreditCard } from 'lucide-react';
 

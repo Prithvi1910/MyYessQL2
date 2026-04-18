@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
@@ -12,7 +12,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { useAuth } from './contexts/AuthContext';
 
 function App() {
-  const { user, role, signOut, loading } = useAuth();
+  const { user, loading } = useAuth();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   const openAuthModal = () => setIsAuthModalOpen(true);
@@ -33,8 +33,6 @@ function App() {
       <div className="grain-overlay"></div>
       
       <Navbar 
-        isAuthenticated={!!user} 
-        onLogout={signOut}
         onLoginClick={openAuthModal}
         onRegisterClick={openAuthModal}
       />

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -7,7 +6,7 @@ interface NavbarProps {
   onRegisterClick?: () => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onRegisterClick }) => {
+const Navbar = ({ onLoginClick, onRegisterClick }: NavbarProps) => {
   const { user, role, signOut } = useAuth();
   const navigate = useNavigate();
 
