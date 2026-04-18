@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
@@ -14,8 +14,21 @@ const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [studentUid, setStudentUid] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
 
   const handleAuth = async (e: FormEvent) => {
     e.preventDefault();
@@ -37,6 +50,7 @@ const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
             data: {
               full_name: fullName,
               role: userType,
+              student_uid: userType === 'student' ? studentUid : null,
             },
           },
         });
@@ -162,6 +176,21 @@ const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
                             required 
                             value={fullName}
                             onChange={(e) => setFullName(e.target.value)}
+                          />
+                        </div>
+                      )}
+
+                      {!isLogin && userType === 'student' && (
+                        <div className="input-group wide">
+                          <label className="label">Student UID (10 digits)</label>
+                          <input 
+                            type="text" 
+                            placeholder="1234567890" 
+                            required 
+                            pattern="\d{10}"
+                            title="Please enter a 10-digit UID"
+                            value={studentUid}
+                            onChange={(e) => setStudentUid(e.target.value.replace(/\D/g, '').slice(0, 10))}
                           />
                         </div>
                       )}
