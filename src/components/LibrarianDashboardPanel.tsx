@@ -1,14 +1,17 @@
 import React, { useState } from 'react'
 import { useLibrarianDashboard } from '../hooks/useLibrarianDashboard'
-import { Upload, FileText, Check, X, AlertCircle, Loader2, Download, Clock, CheckCircle, XCircle, Search, Inbox } from 'lucide-react'
+import { Upload, FileText, Check, X, AlertCircle, Loader2, Download, Clock, CheckCircle, XCircle, Inbox } from 'lucide-react'
 import type { ApplicationWithStudent } from '../types/workflow'
 import ApplicationReviewDrawer from './ApplicationReviewDrawer'
 
 const LibrarianDashboardPanel: React.FC = () => {
-  const { dues, stats, applications, isLoading, error, uploadCSV, updateDueStatus, refresh } = useLibrarianDashboard()
+  const { dues, systemLogs, stats, applications, isLoading, error, uploadCSV, updateDueStatus, refresh } = useLibrarianDashboard()
   const [dragActive, setDragActive] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [selectedApp, setSelectedApp] = useState<ApplicationWithStudent | null>(null)
+
+  const pendingDues = dues.filter(d => d.status === 'pending')
+  const clearedDues = dues.filter(d => d.status === 'paid')
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
@@ -75,6 +78,12 @@ const LibrarianDashboardPanel: React.FC = () => {
           <span>{error}</span>
         </div>
       )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '-20px' }}>
+        <button className="nexus-primary-btn mini" onClick={() => refresh()}>
+          <Clock size={14} /> Refresh Data
+        </button>
+      </div>
 
       {/* Stats Grid for Applications */}
       <div className="stats-grid-row">
@@ -172,7 +181,7 @@ const LibrarianDashboardPanel: React.FC = () => {
       </div>
 
       {/* Dues Upload Section */}
-      <section className="dues-upload-section">
+      <section id="dues-upload" className="dues-upload-section">
         <div className="section-header">
           <h3 className="serif">Flat-File Dues Upload</h3>
           <button onClick={downloadSample} className="text-btn">
@@ -211,15 +220,15 @@ const LibrarianDashboardPanel: React.FC = () => {
       </section>
 
       {/* Dues Registry Section */}
-      <section className="dues-registry-section">
-        <h3 className="serif">Student Dues Registry</h3>
+      <section id="dues-registry" className="dues-registry-section">
+        <h3 className="serif">Student Dues Registry (Pending)</h3>
         <div className="dues-table-container">
-          {isLoading && dues.length === 0 ? (
+          {isLoading && pendingDues.length === 0 ? (
             <div className="loading-state">
               <Loader2 className="spinner" />
               <span>Loading records...</span>
             </div>
-          ) : dues.length > 0 ? (
+          ) : pendingDues.length > 0 ? (
             <table className="dues-table">
               <thead>
                 <tr>
@@ -232,7 +241,7 @@ const LibrarianDashboardPanel: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {dues.map(due => (
+                {pendingDues.map(due => (
                   <tr key={due.id}>
                     <td>{due.student?.full_name || 'Unknown'}</td>
                     <td className="mono">{due.student?.student_uid}</td>
@@ -244,23 +253,13 @@ const LibrarianDashboardPanel: React.FC = () => {
                       </span>
                     </td>
                     <td className="actions">
-                      {due.status === 'pending' ? (
-                        <button 
-                          className="action-btn approve" 
-                          onClick={() => updateDueStatus(due.id, 'paid')}
-                          title="Mark as Paid"
-                        >
-                          <Check size={16} />
-                        </button>
-                      ) : (
-                        <button 
-                          className="action-btn revert" 
-                          onClick={() => updateDueStatus(due.id, 'pending')}
-                          title="Revert to Pending"
-                        >
-                          <X size={16} />
-                        </button>
-                      )}
+                      <button 
+                        className="action-btn approve" 
+                        onClick={() => updateDueStatus(due.id, 'paid')}
+                        title="Mark as Paid"
+                      >
+                        <Check size={16} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -269,7 +268,91 @@ const LibrarianDashboardPanel: React.FC = () => {
           ) : (
             <div className="empty-state">
               <FileText size={48} />
-              <p>No dues records found. Upload a CSV to get started.</p>
+              <p>No pending dues records found.</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Cleared Students Section */}
+      <section id="cleared-students" className="dues-registry-section">
+        <h3 className="serif">Cleared Students</h3>
+        <div className="dues-table-container">
+          {clearedDues.length > 0 ? (
+            <table className="dues-table">
+              <thead>
+                <tr>
+                  <th>STUDENT</th>
+                  <th>UID</th>
+                  <th>DEPARTMENT</th>
+                  <th>AMOUNT</th>
+                  <th>STATUS</th>
+                  <th>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clearedDues.map(due => (
+                  <tr key={due.id}>
+                    <td>{due.student?.full_name || 'Unknown'}</td>
+                    <td className="mono">{due.student?.student_uid}</td>
+                    <td>{due.department}</td>
+                    <td className="amount">₹{due.amount}</td>
+                    <td>
+                      <span className={`status-pill ${due.status}`}>
+                        {due.status.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="actions">
+                      <button 
+                        className="action-btn revert" 
+                        onClick={() => updateDueStatus(due.id, 'pending')}
+                        title="Revert to Pending"
+                      >
+                        <X size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="empty-state" style={{ padding: '40px' }}>
+              <CheckCircle size={32} style={{ opacity: 0.5 }} />
+              <p>No cleared students yet.</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* System Logs Section */}
+      <section id="system-logs" className="dues-registry-section">
+        <h3 className="serif">System Logs</h3>
+        <div className="dues-table-container" style={{ padding: '20px' }}>
+          {systemLogs.length > 0 ? (
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              {systemLogs.map(log => (
+                <li key={log.id} style={{ display: 'flex', gap: '15px', alignItems: 'flex-start', borderBottom: '1px solid #1a1a1a', paddingBottom: '15px' }}>
+                  <div style={{ padding: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', color: log.status === 'approved' ? '#10B981' : '#EF4444' }}>
+                    {log.status === 'approved' ? <CheckCircle size={18} /> : <XCircle size={18} />}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '0.9rem', marginBottom: '4px' }}>
+                      <strong>Application {log.status.toUpperCase()}</strong> for {log.application?.student?.full_name} ({log.application?.student?.student_uid})
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#888' }}>
+                      Comment: "{log.comment}"
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#555', marginTop: '6px' }}>
+                      {new Date(log.updated_at).toLocaleString()}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="empty-state" style={{ padding: '40px' }}>
+              <Inbox size={32} style={{ opacity: 0.5 }} />
+              <p>No recent activity logs.</p>
             </div>
           )}
         </div>
@@ -348,31 +431,17 @@ const LibrarianDashboardPanel: React.FC = () => {
         .nexus-styled-table tr:last-child td { border-bottom: none; }
         
         .student-profile-cell { display: flex; flex-direction: column; }
-        .full-name { font-weight: 700; font-size: 1rem; color: var(--text-primary); }
-        .username { font-size: 0.7rem; margin-top: 2px; }
-        .uid-text { font-size: 0.9rem; color: var(--accent-color); font-weight: 600; }
-        .purpose-label { font-size: 0.85rem; font-weight: 500; color: #aaa; }
-        .docs-count { display: flex; align-items: center; gap: 6px; color: #666; font-size: 0.9rem; font-weight: 600; }
-        
-        .badge-status-pending { background: rgba(201, 168, 76, 0.05); color: var(--accent-color); border: 1px solid rgba(201, 168, 76, 0.1); padding: 6px 14px; border-radius: 100px; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
-        
-        .review-action-btn { background: var(--accent-color); color: #000; font-weight: 800; font-size: 0.7rem; text-transform: uppercase; padding: 10px 24px; border-radius: 6px; transition: 0.3s; }
-        .review-action-btn:hover { transform: scale(1.05); filter: brightness(1.1); box-shadow: 0 4px 15px rgba(201, 168, 76, 0.3); }
-
-        .empty-state-table { padding: 80px 0; display: flex; flex-direction: column; align-items: center; text-align: center; color: #444; }
-        .empty-state-table h4 { font-size: 1.2rem; color: #666; margin: 20px 0 8px 0; }
-        .empty-state-table p { font-size: 0.9rem; max-width: 300px; }
-        .empty-state-table svg { opacity: 0.2; }
-
-        .text-right { text-align: right; }
-        .mono { font-family: 'Courier New', Courier, monospace; }
-        
-        /* Skeleton */
-        .panel-skeleton-container { display: flex; flex-direction: column; gap: 40px; }
-        .skeleton-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-        .skeleton-card { height: 120px; background: rgba(255,255,255,0.02); border-radius: 12px; }
-        .skeleton-table { height: 400px; background: rgba(255,255,255,0.01); border-radius: 16px; }
-      ` }} />
+        .student-profile-cell .full-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 4px; }
+        .student-profile-cell .username { opacity: 0.5; }
+        .uid-text { color: var(--accent-color); font-weight: 600; letter-spacing: 1px; }
+        .purpose-label { padding: 6px 12px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.8rem; }
+        .docs-count { display: inline-flex; align-items: center; gap: 6px; background: rgba(201, 168, 76, 0.1); color: var(--accent-color); padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; }
+        .badge-status-pending { padding: 6px 12px; background: rgba(239, 68, 68, 0.1); color: #EF4444; border-radius: 6px; font-size: 0.8rem; font-weight: 600; border: 1px solid rgba(239, 68, 68, 0.2); }
+        .review-action-btn { background: #fff; color: #000; border: none; padding: 10px 24px; border-radius: 6px; font-weight: 800; font-size: 0.8rem; cursor: pointer; transition: 0.3s; }
+        .review-action-btn:hover { background: var(--accent-color); }
+        .empty-state-table { padding: 60px; text-align: center; color: #555; display: flex; flex-direction: column; align-items: center; gap: 15px; }
+        .empty-state-table h4 { font-size: 1.2rem; color: #fff; margin: 0; }
+      `}} />
     </div>
   )
 }

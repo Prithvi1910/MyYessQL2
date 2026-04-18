@@ -3,9 +3,14 @@ import { motion } from 'framer-motion';
 import ActivityStrip from './ActivityStrip';
 import DashboardCard from './DashboardCard';
 import AnimatedPipeline from './AnimatedPipeline';
+import { useStudentApplication } from '../hooks/useStudentApplication';
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
+  const { dues } = useStudentApplication();
+
+  const pendingDues = dues.filter(d => d.status === 'pending');
+  const totalPendingAmount = pendingDues.reduce((sum, d) => sum + d.amount, 0);
 
   return (
     <div className="dashboard-container container" style={{ padding: '60px 40px' }}>
@@ -33,7 +38,9 @@ const StudentDashboard = () => {
             title="Resolution Center"
             body="View and clear any flagged dues — library fines, lab charges, or hostel fees."
             status={
-              <div style={{ color: '#EF4444', fontWeight: 600 }}>2 dues pending · Total ₹680</div>
+              pendingDues.length > 0 
+                ? <div style={{ color: '#EF4444', fontWeight: 600 }}>{pendingDues.length} dues pending · Total ₹{totalPendingAmount}</div>
+                : <div style={{ color: '#10B981', fontWeight: 600 }}>All Clear! No pending dues.</div>
             }
             cta="Manage Payments →"
             onClick={() => navigate('/student/finances')}

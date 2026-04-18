@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
 import { 
   CreditCard, 
   AlertCircle, 
@@ -12,35 +10,12 @@ import {
   Loader2
 } from 'lucide-react';
 import PaymentModal from './PaymentModal';
+import { useStudentApplication } from '../hooks/useStudentApplication';
 
 const StudentFinancesPage: React.FC = () => {
-  const { user } = useAuth();
-  const [dues, setDues] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { dues, isLoading, handlePaymentSuccess } = useStudentApplication();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedDue, setSelectedDue] = useState<any | null>(null);
-
-  useEffect(() => {
-    const fetchDues = async () => {
-      if (!user) return;
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('dues')
-          .select('*')
-          .eq('student_id', user.id);
-        
-        if (error) throw error;
-        setDues(data || []);
-      } catch (err) {
-        console.error('Error fetching dues:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchDues();
-  }, [user]);
 
   const totalPending = dues
     .filter(d => d.status === 'pending')
@@ -155,7 +130,7 @@ const StudentFinancesPage: React.FC = () => {
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
         dues={selectedDue ? [selectedDue] : []}
-        onSuccess={() => window.location.reload()}
+        onSuccess={() => handlePaymentSuccess(selectedDue ? [selectedDue] : [])}
       />
 
       <style dangerouslySetInnerHTML={{ __html: `

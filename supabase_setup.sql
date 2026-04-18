@@ -298,6 +298,10 @@ using (auth.uid() = student_id);
 create policy "Students can view their own dues." on dues for select
 using (auth.uid() = student_id);
 
+create policy "Students can update their own dues status." on dues for update
+using (auth.uid() = student_id)
+with check (auth.uid() = student_id);
+
 create policy "Librarians can view all dues." on dues for select
 using (
   (select role from public.profiles where id = auth.uid()) in ('librarian', 'admin')

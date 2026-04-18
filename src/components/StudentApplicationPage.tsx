@@ -31,6 +31,7 @@ const StudentApplicationPage: React.FC = () => {
     updateField,
     updateDocumentSelection,
     submitApplication,
+    handlePaymentSuccess,
     dues,
     error
   } = useStudentApplication()
@@ -525,7 +526,7 @@ const StudentApplicationPage: React.FC = () => {
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
         dues={duesToPay}
-        onSuccess={() => window.location.reload()} // Simple refresh to update dues state
+        onSuccess={() => handlePaymentSuccess(duesToPay)}
       />
 
       <style dangerouslySetInnerHTML={{

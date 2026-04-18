@@ -18,6 +18,7 @@ export interface DueRecord {
 export const useLibrarianDashboard = () => {
   const { user } = useAuth()
   const [dues, setDues] = useState<DueRecord[]>([])
+  const [systemLogs, setSystemLogs] = useState<any[]>([])
   const [stats, setStats] = useState({ awaiting: 0, approved: 0, rejected: 0 })
   const [applications, setApplications] = useState<ApplicationWithStudent[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -58,6 +59,21 @@ export const useLibrarianDashboard = () => {
 
       setStats(counts)
 
+      // 2.5 Fetch System Logs (Recent Librarian Approvals)
+      const { data: logsData, error: logsError } = await supabase
+        .from('approvals')
+        .select(`
+          id, status, updated_at, comment,
+          application:applications(student:profiles(full_name, student_uid))
+        `)
+        .eq('role', 'librarian')
+        .neq('status', 'pending')
+        .order('updated_at', { ascending: false })
+        .limit(10)
+      
+      if (logsError) throw logsError
+      setSystemLogs(logsData as any[] || [])
+
       // 3. Fetch Applications at 'librarian' stage
       // Note: Librarians see all departments, so no department filter
       const { data, error: appError } = await supabase
@@ -82,6 +98,38 @@ export const useLibrarianDashboard = () => {
 
   useEffect(() => {
     fetchData()
+
+    // 1. Real-time Subscription for Dues & Broadcast Bridge
+    const duesChannel = supabase
+      .channel('global-sync-bridge')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dues' }, () => {
+        fetchData() // Refresh on any DB change
+      })
+      .on('broadcast', { event: 'PAYMENT_COMPLETED' }, () => {
+        fetchData() // Refresh immediately when student broadcasts payment
+      })
+      .subscribe()
+
+    // 2. Real-time Subscription for Approvals
+    const approvalsChannel = supabase
+      .channel('approvals-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'approvals' }, (payload) => {
+        if (payload.new && (payload.new as any).role === 'librarian') {
+          fetchData()
+        }
+      })
+      .subscribe()
+
+    // 3. Polling Fallback (Every 3 seconds for extra responsiveness)
+    const interval = setInterval(() => {
+      fetchData()
+    }, 3000)
+
+    return () => {
+      supabase.removeChannel(duesChannel)
+      supabase.removeChannel(approvalsChannel)
+      clearInterval(interval)
+    }
   }, [user])
 
   // ... Dues logic ...
@@ -201,6 +249,7 @@ export const useLibrarianDashboard = () => {
 
   return {
     dues,
+    systemLogs,
     stats,
     applications,
     isLoading,

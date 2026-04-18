@@ -104,7 +104,30 @@ export const useStudentApplication = () => {
 
   useEffect(() => {
     fetchData()
-  }, [user])
+
+    // 1. Real-time Subscription
+    const channel = supabase
+      .channel(`student-updates-${user?.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'applications', filter: `student_id=eq.${user?.id}` }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dues', filter: `student_id=eq.${user?.id}` }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'approvals' }, (payload) => {
+        // Only refresh if the approval belongs to the current application
+        if (application && payload.new && (payload.new as any).application_id === application.id) {
+          fetchData()
+        }
+      })
+      .subscribe()
+
+    // 2. Polling Fallback (Every 5 seconds)
+    const interval = setInterval(() => {
+      fetchData()
+    }, 5000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(interval)
+    }
+  }, [user, application?.id])
 
   const createApplication = async () => {
     setIsLoading(true)
@@ -276,6 +299,83 @@ export const useStudentApplication = () => {
     }
   }
 
+  const handlePaymentSuccess = async (paidDues: any[]) => {
+    if (!application || !profile) return
+    setIsLoading(true)
+    
+    try {
+      // 1. Generate Receipt
+      const { generateReceipt } = await import('../lib/ReceiptGenerator')
+      
+      const totalAmount = paidDues.reduce((sum, d) => sum + d.amount, 0)
+      const departments = [...new Set(paidDues.map(d => d.department))]
+      const txId = 'TXN-' + Math.random().toString(36).substring(2, 10).toUpperCase()
+      
+      generateReceipt({
+        studentName: profile.full_name,
+        studentUid: profile.student_uid,
+        amount: totalAmount,
+        departments,
+        transactionId: txId,
+        date: new Date().toLocaleString()
+      })
+
+      // 2. Automate Pipeline Advancement
+      if (application.is_submitted && application.current_stage !== 'done') {
+        // If already in the pipeline (e.g., blocked by Librarian), automatically approve current stage
+        const { error: approvalError } = await supabase
+          .from('approvals')
+          .update({ 
+            status: 'approved', 
+            comment: 'System: Automatically approved via Payment Gateway.',
+            updated_at: new Date().toISOString()
+          })
+          .eq('application_id', application.id)
+          .eq('role', application.current_stage)
+
+        if (approvalError) throw approvalError
+
+        // CRITICAL: Advance the application stage in the applications table
+        if (application.current_stage === 'librarian') {
+          const { error: stageError } = await supabase
+            .from('applications')
+            .update({ current_stage: 'lab' })
+            .eq('id', application.id)
+          if (stageError) throw stageError
+        }
+      } else if (!application.is_submitted) {
+        // If not submitted yet, automatically submit it now that dues are clear
+        const { error: submitError } = await supabase
+          .from('applications')
+          .update({
+            is_submitted: true,
+            department: application.department,
+            current_stage: 'librarian' // Ensure it starts at librarian
+          })
+          .eq('id', application.id)
+
+        if (submitError) throw submitError
+      }
+
+      // Final refresh
+      await fetchData()
+
+      // 3. Broadcast to Librarian Dashboard for instantaneous sync
+      const channel = supabase.channel('global-sync-bridge')
+      await channel.subscribe()
+      await channel.send({
+        type: 'broadcast',
+        event: 'PAYMENT_COMPLETED',
+        payload: { studentId: profile.id }
+      })
+      supabase.removeChannel(channel)
+    } catch (err: any) {
+      setError('Payment logged, but failed to advance pipeline: ' + err.message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return {
     application,
     approvals,
@@ -288,6 +388,7 @@ export const useStudentApplication = () => {
     updateField,
     updateDocumentSelection,
     submitApplication,
+    handlePaymentSuccess,
     dues,
     error,
     refresh: fetchData

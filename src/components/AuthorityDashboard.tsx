@@ -9,6 +9,7 @@ import LibrarianDashboardPanel from './LibrarianDashboardPanel';
 const AuthorityDashboard: React.FC = () => {
   const { profile, signOut } = useAuthority();
   const navigate = useNavigate();
+  const [activeLinkId, setActiveLinkId] = React.useState<string>('dues-upload');
 
   const handleSignOut = async () => {
     await signOut();
@@ -26,11 +27,18 @@ const AuthorityDashboard: React.FC = () => {
     }
   };
 
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   const renderSidebarLinks = () => {
     const role = profile?.role;
     if (!role) return null;
 
-    const links: Record<string, { label: string; active: boolean }[]> = {
+    const links: Record<string, { label: string; active: boolean; id?: string }[]> = {
       lab: [
         { label: 'Pending Applications', active: true },
         { label: 'Cleared Students', active: false },
@@ -50,26 +58,40 @@ const AuthorityDashboard: React.FC = () => {
         { label: 'Institution Metrics', active: false }
       ],
       admin: [
-        { label: 'CSV Dues Upload', active: true },
-        { label: 'Student Dues Registry', active: false },
-        { label: 'Cleared Students', active: false },
-        { label: 'System Logs', active: false }
+        { label: 'CSV Dues Upload', active: true, id: 'dues-upload' },
+        { label: 'Student Dues Registry', active: false, id: 'dues-registry' },
+        { label: 'Cleared Students', active: false, id: 'cleared-students' },
+        { label: 'System Logs', active: false, id: 'system-logs' }
       ],
       librarian: [
-        { label: 'CSV Dues Upload', active: true },
-        { label: 'Student Dues Registry', active: false },
-        { label: 'Cleared Students', active: false },
-        { label: 'System Logs', active: false }
+        { label: 'CSV Dues Upload', active: true, id: 'dues-upload' },
+        { label: 'Student Dues Registry', active: false, id: 'dues-registry' },
+        { label: 'Cleared Students', active: false, id: 'cleared-students' },
+        { label: 'System Logs', active: false, id: 'system-logs' }
       ],
     };
 
     const roleLinks = links[role as string] || [];
 
-    return roleLinks.map((link: { label: string; active: boolean }, i: number) => (
-      <div key={i} className={`nav-item ${link.active ? 'active' : ''}`}>
-        {link.label}
-      </div>
-    ));
+    return roleLinks.map((link: { label: string; active: boolean; id?: string }, i: number) => {
+      const isActive = link.id ? activeLinkId === link.id : link.active;
+      
+      return (
+        <div 
+          key={i} 
+          className={`nav-item ${isActive ? 'active' : ''}`}
+          onClick={() => {
+            if (link.id) {
+              setActiveLinkId(link.id);
+              scrollToSection(link.id);
+            }
+          }}
+          style={{ cursor: link.id ? 'pointer' : 'default' }}
+        >
+          {link.label}
+        </div>
+      );
+    });
   };
 
   const renderContentPanel = () => {

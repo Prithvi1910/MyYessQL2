@@ -104,20 +104,48 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, dues, onSu
           )}
 
           {step === 'processing' && (
-            <div className="processing-state">
-              <Loader2 className="spinner" size={48} />
-              <h3 className="serif">Authorizing Transaction</h3>
-              <p>Please do not refresh the page...</p>
+            <div className="processing-state" style={{ padding: '60px 0', textAlign: 'center' }}>
+              <div className="processing-animation">
+                <Loader2 className="spinner" size={64} style={{ color: 'var(--accent-color)', marginBottom: '30px' }} />
+              </div>
+              <h3 className="serif" style={{ fontSize: '1.8rem', marginBottom: '10px' }}>Verifying Transaction</h3>
+              <p style={{ color: '#666', fontSize: '0.9rem' }}>Communicating with secure payment gateway...</p>
             </div>
           )}
 
           {step === 'success' && (
-            <div className="success-state">
-              <div className="success-check">
+            <div className="success-state" style={{ padding: '40px 0', textAlign: 'center', animation: 'fadeIn 0.5s ease' }}>
+              <div className="success-icon-wrapper" style={{ 
+                width: '100px', height: '100px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)', 
+                color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 30px' 
+              }}>
                 <CheckCircle size={64} />
               </div>
-              <h3 className="serif">Payment Successful</h3>
-              <p>Your dues have been cleared. Redirecting...</p>
+              <h3 className="serif" style={{ fontSize: '2rem', marginBottom: '10px' }}>Payment Confirmed</h3>
+              <p style={{ color: '#888', marginBottom: '30px' }}>Transaction ID: {Math.random().toString(36).substring(2, 12).toUpperCase()}</p>
+              
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '12px', marginBottom: '30px', textAlign: 'left' }}>
+                <div style={{ fontSize: '0.7rem', color: '#555', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Digital Receipt Summary</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                  <span style={{ color: '#888' }}>Total Amount:</span>
+                  <span style={{ color: '#fff', fontWeight: 700 }}>₹{totalAmount.toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#888' }}>Status:</span>
+                  <span style={{ color: '#10B981', fontWeight: 700 }}>SUCCESS</span>
+                </div>
+              </div>
+
+              <button 
+                className="nexus-primary-btn" 
+                onClick={() => {
+                  onSuccess();
+                  onClose();
+                }}
+                style={{ width: '100%' }}
+              >
+                RETURN TO DASHBOARD
+              </button>
             </div>
           )}
         </div>
