@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import LandingPage from './components/LandingPage';
 import AuthModal from './components/AuthModal';
@@ -8,10 +8,18 @@ import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useAuth } from './contexts/AuthContext';
 import StudentDashboard from './components/StudentDashboard';
+import AuthoritySignup from './components/AuthoritySignup';
+import AuthorityLogin from './components/AuthorityLogin';
+import AuthorityDashboard from './components/AuthorityDashboard';
+import AuthorityRoute from './components/AuthorityRoute';
 
 function App() {
   const { user, loading } = useAuth();
+  const location = useLocation();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // Hide global navbar on authority dashboard
+  const isAuthorityDashboard = location.pathname === '/authority/dashboard';
 
   const openAuthModal = () => setIsAuthModalOpen(true);
   const closeAuthModal = () => setIsAuthModalOpen(false);
@@ -30,10 +38,12 @@ function App() {
       <InteractiveBackground />
       <div className="grain-overlay"></div>
       
-      <Navbar 
-        onLoginClick={openAuthModal}
-        onRegisterClick={openAuthModal}
-      />
+      {!isAuthorityDashboard && (
+        <Navbar 
+          onLoginClick={openAuthModal}
+          onRegisterClick={openAuthModal}
+        />
+      )}
 
       <main>
         <Routes>
@@ -59,6 +69,15 @@ function App() {
                 {/* Admin specific components will go here */}
               </div>
             </ProtectedRoute>
+          } />
+
+          {/* Authority Routes */}
+          <Route path="/authority/signup" element={<AuthoritySignup />} />
+          <Route path="/authority/login" element={<AuthorityLogin />} />
+          <Route path="/authority/dashboard" element={
+            <AuthorityRoute>
+              <AuthorityDashboard />
+            </AuthorityRoute>
           } />
 
           <Route path="/unauthorized" element={

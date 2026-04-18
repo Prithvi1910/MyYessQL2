@@ -40,7 +40,13 @@ const Navbar: React.FC<NavbarProps> = ({
             <div className="nav-identity">
               <div className="student-info">
                 <span className="student-name">{user.email?.split('@')[0]}</span>
-                <span className="student-batch">{role === 'admin' ? 'Administrative Authority' : 'SE · 2025'}</span>
+                <span className="student-batch">
+                  {role === 'admin' ? 'Librarian · Authority' : 
+                   role === 'hod' ? 'HOD · Department' :
+                   role === 'lab' ? 'Lab Assistant' :
+                   role === 'principal' ? 'Principal · Nexus' :
+                   'SE · 2025'}
+                </span>
               </div>
 
               <button 
