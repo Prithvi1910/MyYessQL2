@@ -40,16 +40,16 @@ const AuthorityDashboard: React.FC = () => {
 
     const links: Record<string, { label: string; active: boolean; id?: string }[]> = {
       lab: [
-        { label: 'Pending Applications', active: true },
-        { label: 'Cleared Students', active: false },
-        { label: 'Lab Dues Management', active: false },
-        { label: 'Inventory Checklist', active: false }
+        { label: 'Pending Applications', active: true, id: 'lab-pending' },
+        { label: 'Cleared Students', active: false, id: 'lab-cleared' },
+        { label: 'Lab Dues Management', active: false, id: 'lab-dues' },
+        { label: 'Inventory Checklist', active: false, id: 'lab-inventory' }
       ],
       hod: [
-        { label: 'Applications Awaiting HOD', active: true },
-        { label: 'Department Overview', active: false },
-        { label: 'Faculty Escalations', active: false },
-        { label: 'Approval History', active: false }
+        { label: 'Applications Awaiting HOD', active: true, id: 'hod-pending' },
+        { label: 'Department Overview', active: false, id: 'dept-overview' },
+        { label: 'Faculty Escalations', active: false, id: 'faculty-escalations' },
+        { label: 'Approval History', active: false, id: 'approval-history' }
       ],
       principal: [
         { label: 'Final Approvals', active: true },

@@ -20,6 +20,7 @@ export interface Application {
   student?: {
     full_name: string
     username: string
+    student_uid?: string
   }
 }
 

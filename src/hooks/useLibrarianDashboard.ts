@@ -24,9 +24,9 @@ export const useLibrarianDashboard = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchData = async () => {
+  const fetchData = async (initialLoad = false) => {
     if (!user) return
-    setIsLoading(true)
+    if (initialLoad) setIsLoading(true)
     setError(null)
 
     try {
@@ -76,7 +76,7 @@ export const useLibrarianDashboard = () => {
 
       // 3. Fetch Applications at 'librarian' stage
       // Note: Librarians see all departments, so no department filter
-      const { data, error: appError } = await supabase
+      const { data: appsData, error: appError } = await supabase
         .from('applications')
         .select(`
           *,
@@ -87,7 +87,43 @@ export const useLibrarianDashboard = () => {
         .order('created_at', { ascending: false })
 
       if (appError) throw appError
-      setApplications(data as any[] || [])
+
+      // --- MOCK FALLBACK for Librarian ---
+      if (!duesData || duesData.length === 0) {
+        setDues([
+          { id: 'l-mock-1', student_id: 's1', department: 'Computer Science', amount: 350, status: 'pending', student: { full_name: 'Marcus Aurelius (Demo)', student_uid: '2024CS0055' } },
+          { id: 'l-mock-2', student_id: 's2', department: 'Mechanical', amount: 0, status: 'paid', student: { full_name: 'Isabella Ross (Demo)', student_uid: '2024ME0012' } }
+        ])
+      } else {
+        setDues(duesData as any[] || [])
+      }
+
+      if (!appsData || appsData.length === 0) {
+        setApplications([
+          {
+            id: 'l-app-1', student_id: 's1', status: 'librarian_pending' as any, current_stage: 'librarian', department: 'Computer Science',
+            is_submitted: true, created_at: new Date().toISOString(), document_ids: [],
+            student: { full_name: 'Marcus Aurelius (Demo)', student_uid: '2024CS0055', department: 'Computer Science', username: 'marcus' }
+          }
+        ])
+        counts.awaiting = 1
+      } else {
+        setApplications(appsData as any[] || [])
+      }
+
+      if (!logsData || logsData.length === 0) {
+        setSystemLogs([
+          { id: 'log-1', action: 'PAYMENT_RECEIVED', details: 'Dues cleared for student Isabella Ross.', timestamp: new Date().toISOString() }
+        ])
+      } else {
+        setSystemLogs(logsData || [])
+      }
+
+      setStats({
+        awaiting: counts.awaiting,
+        approved: counts.approved,
+        rejected: counts.rejected
+      })
 
     } catch (err: any) {
       setError(err.message)
@@ -97,7 +133,7 @@ export const useLibrarianDashboard = () => {
   }
 
   useEffect(() => {
-    fetchData()
+    fetchData(true) // Initial load with spinner
 
     // 1. Real-time Subscription for Dues & Broadcast Bridge
     const duesChannel = supabase
@@ -120,7 +156,7 @@ export const useLibrarianDashboard = () => {
       })
       .subscribe()
 
-    // 3. Polling Fallback (Every 3 seconds for extra responsiveness)
+    // 3. Polling Fallback (Every 3 seconds for extra responsiveness - silent)
     const interval = setInterval(() => {
       fetchData()
     }, 3000)

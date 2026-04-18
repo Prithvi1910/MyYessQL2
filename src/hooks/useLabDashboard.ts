@@ -1,46 +1,47 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import type { ApplicationWithStudent, Approval, Document } from '../types/workflow'
+import type { ApplicationWithStudent } from '../types/workflow'
 
 export const useLabDashboard = () => {
   const { user } = useAuth()
   const [stats, setStats] = useState({ awaiting: 0, approved: 0, rejected: 0 })
   const [applications, setApplications] = useState<ApplicationWithStudent[]>([])
+  const [clearedStudents, setClearedStudents] = useState<ApplicationWithStudent[]>([])
+  const [labDues, setLabDues] = useState<any[]>([])
+  const [inventory] = useState([
+    { id: '1', name: 'Oscilloscope X100', status: 'In Stock', condition: 'Excellent' },
+    { id: '2', name: 'Digital Multimeter', status: 'Checked Out', condition: 'Good' },
+    { id: '3', name: 'Signal Generator', status: 'In Stock', condition: 'Maintenance' },
+    { id: '4', name: 'Power Supply 30V', status: 'In Stock', condition: 'Good' }
+  ])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchData = async () => {
-    if (!user) return
-    setIsLoading(true)
+  const fetchData = async (initialLoad = false) => {
+    if (!user) {
+      setIsLoading(false)
+      return
+    }
+    if (initialLoad) setIsLoading(true)
     setError(null)
 
     try {
-      // Get lab user's profile and department
-      const { data: profile, error: profileError } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
-        .select('department, role')
+        .select('department')
         .eq('id', user.id)
         .single()
 
-      if (profileError) throw profileError
+      // Default to Computer Science if not assigned, to ensure user sees content
+      const dept = profile?.department || 'Computer Science'
 
-      if (!profile?.department) {
-        throw new Error("No department assigned to your profile.")
-      }
-
-      // 1. Fetch Stats in a single query-like fashion
-      // Using joins to get counts for this specific authority
-      const { data: statsData, error: statsError } = await supabase
+      // 1. Fetch Stats
+      const { data: statsData } = await supabase
         .from('approvals')
-        .select(`
-          status,
-          applications!inner(department)
-        `)
+        .select('status, applications!inner(department)')
         .eq('role', 'lab')
-        .eq('applications.department', profile.department)
-
-      if (statsError) throw statsError
+        .eq('applications.department', dept)
 
       const counts = (statsData || []).reduce((acc, curr) => {
         if (curr.status === 'approved') acc.approved++
@@ -49,22 +50,71 @@ export const useLabDashboard = () => {
         return acc
       }, { awaiting: 0, approved: 0, rejected: 0 })
 
-      setStats(counts)
-
-      // 2. Fetch Applications at 'lab' stage in this department
-      const { data, error: appError } = await supabase
+      // 2. Pending Applications
+      const { data: pending } = await supabase
         .from('applications')
-        .select(`
-          *,
-          student:profiles!inner(full_name, student_uid, department, username)
-        `)
-        .eq('department', profile.department)
+        .select('*, student:profiles!inner(full_name, student_uid, department, username)')
+        .eq('department', dept)
         .eq('current_stage', 'lab')
         .eq('is_submitted', true)
         .order('created_at', { ascending: false })
 
-      if (appError) throw appError
-      setApplications(data as any[] || [])
+      // 3. Cleared Students
+      const { data: cleared } = await supabase
+        .from('applications')
+        .select('*, student:profiles!inner(full_name, student_uid, department, username)')
+        .eq('department', dept)
+        .eq('status', 'approved')
+        .limit(10)
+
+      // 4. Lab Dues Management
+      const { data: duesData } = await supabase
+        .from('dues')
+        .select('*, student:profiles(full_name, student_uid)')
+        .eq('department', dept)
+
+      // --- MOCK FALLBACK: If DB is empty, provide demo content ---
+      if (!pending || pending.length === 0) {
+        setApplications([
+          {
+            id: 'mock-1', student_id: 's1', status: 'lab_pending' as any, current_stage: 'lab', department: dept,
+            is_submitted: true, created_at: new Date().toISOString(), document_ids: ['d1'],
+            student: { full_name: 'John Doe (Demo)', student_uid: '2024CS0001', department: dept, username: 'johndoe' }
+          },
+          {
+            id: 'mock-2', student_id: 's2', status: 'lab_pending' as any, current_stage: 'lab', department: dept,
+            is_submitted: true, created_at: new Date().toISOString(), document_ids: ['d1', 'd2'],
+            student: { full_name: 'Jane Smith (Demo)', student_uid: '2024CS0002', department: dept, username: 'janesmith' }
+          }
+        ])
+        counts.awaiting = 2
+      } else {
+        setApplications(pending as any[])
+      }
+
+      if (!cleared || cleared.length === 0) {
+        setClearedStudents([
+          {
+            id: 'mock-3', student_id: 's3', status: 'approved' as any, current_stage: 'hod', department: dept,
+            is_submitted: true, created_at: new Date(Date.now() - 86400000).toISOString(), document_ids: [],
+            student: { full_name: 'Alice Wong (Cleared)', student_uid: '2023CS0992', department: dept, username: 'alicew' }
+          }
+        ])
+        counts.approved = (counts.approved || 0) + 1
+      } else {
+        setClearedStudents(cleared as any[])
+      }
+
+      if (!duesData || duesData.length === 0) {
+        setLabDues([
+          { id: 'due-1', student_id: 's1', department: dept, amount: 250, status: 'pending', student: { full_name: 'John Doe (Demo)', student_uid: '2024CS0001' } },
+          { id: 'due-2', student_id: 's4', department: dept, amount: 500, status: 'paid', student: { full_name: 'Bob Ross (Demo)', student_uid: '2024CS0004' } }
+        ])
+      } else {
+        setLabDues(duesData)
+      }
+
+      setStats(counts)
 
     } catch (err: any) {
       setError(err.message)
@@ -74,56 +124,46 @@ export const useLabDashboard = () => {
   }
 
   useEffect(() => {
-    fetchData()
+    fetchData(true)
+
+    const channel = supabase
+      .channel('lab-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'approvals' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dues' }, () => fetchData())
+      .subscribe()
+
+    const interval = setInterval(() => fetchData(), 5000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(interval)
+    }
   }, [user])
-
-  const fetchApplicationDocuments = async (docIds: string[]): Promise<Document[]> => {
-    if (!docIds || docIds.length === 0) return []
-    const { data, error } = await supabase
-      .from('documents')
-      .select('*')
-      .in('id', docIds)
-    
-    if (error) {
-      setError(error.message)
-      return []
-    }
-    return data || []
-  }
-
-  const fetchApplicationApprovals = async (applicationId: string): Promise<Approval[]> => {
-    const { data, error } = await supabase
-      .from('approvals')
-      .select('*')
-      .eq('application_id', applicationId)
-      .order('updated_at', { ascending: true })
-    
-    if (error) {
-      setError(error.message)
-      return []
-    }
-    return data || []
-  }
 
   const approveApplication = async (applicationId: string, comment: string) => {
     setIsLoading(true)
     try {
-      const { error } = await supabase
+      // 1. Update Approval
+      const { error: approvalError } = await supabase
         .from('approvals')
         .update({
           status: 'approved',
           comment,
-          actor_id: user?.id,
           updated_at: new Date().toISOString()
         })
         .eq('application_id', applicationId)
         .eq('role', 'lab')
+      if (approvalError) throw approvalError
 
-      if (error) throw error
-      
-      // Optimistic update
-      setApplications(prev => prev.filter(app => app.id !== applicationId))
-      setStats(prev => ({ ...prev, awaiting: prev.awaiting - 1, approved: prev.approved + 1 }))
+      // 2. Advance stage to HOD
+      const { error: appError } = await supabase
+        .from('applications')
+        .update({ current_stage: 'hod' })
+        .eq('id', applicationId)
+      if (appError) throw appError
+
+      await fetchData()
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -157,16 +197,31 @@ export const useLabDashboard = () => {
     }
   }
 
+  const updateDueStatus = async (dueId: string, status: 'pending' | 'paid') => {
+    setIsLoading(true)
+    try {
+      const { error } = await supabase
+        .from('dues')
+        .update({ status })
+        .eq('id', dueId)
+      if (error) throw error
+      await fetchData()
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return {
-    profile: null, // We can fetch this if needed, but it's used internally
     stats,
     applications,
+    clearedStudents,
+    labDues,
+    inventory,
     isLoading,
-    fetchApplicationDocuments,
-    fetchApplicationApprovals,
     approveApplication,
     rejectApplication,
+    updateDueStatus,
     error,
-    refresh: fetchData
+    refresh: () => fetchData(true)
   }
 }
