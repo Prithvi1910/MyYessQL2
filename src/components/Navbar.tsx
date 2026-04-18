@@ -1,34 +1,44 @@
 import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 interface NavbarProps {
-  onLogout?: () => void;
   onLoginClick?: () => void;
   onRegisterClick?: () => void;
-  isAuthenticated?: boolean;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ onLogout, onLoginClick, onRegisterClick, isAuthenticated }) => {
+const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onRegisterClick }) => {
+  const { user, role, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
+
   return (
     <nav className="navbar">
       <div className="container nav-container">
-        <div className="logo-group">
+        <Link to="/" className="logo-group" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="logo-icon" />
           <div className="logo serif italic">NEXUS</div>
-        </div>
+        </Link>
         
         <div className="nav-links">
-          {!isAuthenticated ? (
+          {!user ? (
             <>
               <button onClick={onLoginClick} className="label">Log In</button>
               <button onClick={onRegisterClick} className="label">Register</button>
             </>
           ) : (
             <>
-              <a href="#" className="label">Portal</a>
-              <a href="#" className="label">Protocol</a>
+              <Link to="/dashboard" className="label" style={{ textDecoration: 'none' }}>Dashboard</Link>
+              {role && role !== 'student' && (
+                <Link to="/admin" className="label" style={{ textDecoration: 'none' }}>Console</Link>
+              )}
               <a href="#" className="label">Registry</a>
               <button 
-                onClick={onLogout} 
+                onClick={handleSignOut} 
                 className="label" 
                 style={{ color: 'var(--accent-color)', cursor: 'pointer', marginLeft: '20px' }}
               >
@@ -38,10 +48,10 @@ const Navbar: React.FC<NavbarProps> = ({ onLogout, onLoginClick, onRegisterClick
           )}
         </div>
 
-        {!isAuthenticated ? (
-          <button className="btn-primary" style={{ padding: '8px 20px', fontSize: '0.6rem' }}>Portal Access</button>
+        {!user ? (
+          <button onClick={onLoginClick} className="btn-primary" style={{ padding: '8px 20px', fontSize: '0.6rem' }}>Portal Access</button>
         ) : (
-          <button onClick={onLogout} className="nav-menu label">Secure Out</button>
+          <button onClick={handleSignOut} className="nav-menu label">Secure Out</button>
         )}
       </div>
     </nav>

@@ -1,20 +1,53 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '../lib/supabase';
 
 interface AuthModalProps {
   onClose: () => void;
-  onLogin: (userType: 'student' | 'authority', userData: any) => void;
   isOpen: boolean;
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [isLogin, setIsLogin] = useState(true);
-  const [userType, setUserType] = useState<'student' | 'authority'>('student');
+  const [userType, setUserType] = useState<'student' | 'lab' | 'hod' | 'principal' | 'admin'>('student');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleAuth = (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin(userType, { name: "John Doe", id: userType === 'student' ? 'STU-123' : 'AUTH-123' });
-    onClose();
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: fullName,
+              role: userType,
+            },
+          },
+        });
+        if (error) throw error;
+        alert('Check your email for the confirmation link!');
+      }
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during authentication');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -27,7 +60,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin }) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer' }}
           />
           
           <motion.div 
@@ -73,12 +106,41 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin }) => {
                   Student
                 </button>
                 <button 
-                  className={`type-btn ${userType === 'authority' ? 'active' : ''}`}
-                  onClick={() => setUserType('authority')}
+                  className={`type-btn ${userType !== 'student' ? 'active' : ''}`}
+                  onClick={() => setUserType('admin')}
                 >
                   Authority
                 </button>
               </div>
+
+              {!isLogin && userType !== 'student' && (
+                <div className="input-group wide" style={{ marginBottom: '1.5rem' }}>
+                  <label className="label">Authority Type</label>
+                  <select 
+                    value={userType} 
+                    onChange={(e) => setUserType(e.target.value as any)}
+                    style={{ 
+                      width: '100%', 
+                      padding: '12px', 
+                      background: 'var(--surface-color)', 
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-primary)',
+                      borderRadius: '4px'
+                    }}
+                  >
+                    <option value="admin">System Admin</option>
+                    <option value="lab">Lab Authority</option>
+                    <option value="hod">HOD</option>
+                    <option value="principal">Principal</option>
+                  </select>
+                </div>
+              )}
+
+              {error && (
+                <div style={{ color: '#ff4444', marginBottom: '1rem', textAlign: 'center', fontSize: '0.9rem' }}>
+                  {error}
+                </div>
+              )}
 
               <form onSubmit={handleAuth}>
                 <AnimatePresence mode="wait">
@@ -93,45 +155,42 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin }) => {
                       {!isLogin && (
                         <div className="input-group wide">
                           <label className="label">Full Legal Name</label>
-                          <input type="text" placeholder="Johnathan Doe" required />
+                          <input 
+                            type="text" 
+                            placeholder="Johnathan Doe" 
+                            required 
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                          />
                         </div>
                       )}
 
-                      <div className={`input-group ${isLogin ? 'wide' : ''}`}>
-                        <label className="label">{userType === 'student' ? 'Student ID' : 'Authority ID'}</label>
-                        <input type="text" placeholder={userType === 'student' ? "STU-000000" : "AUTH-000000"} required />
+                      <div className="input-group wide">
+                        <label className="label">Email Address</label>
+                        <input 
+                          type="email" 
+                          placeholder="name@university.edu" 
+                          required 
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                        />
                       </div>
-
-                      {!isLogin && (
-                        <>
-                          <div className="input-group">
-                            <label className="label">Department</label>
-                            <input type="text" placeholder="Computer Science" required />
-                          </div>
-                          {userType === 'student' && (
-                            <>
-                              <div className="input-group">
-                                <label className="label">Course</label>
-                                <input type="text" placeholder="B.Tech" required />
-                              </div>
-                              <div className="input-group">
-                                <label className="label">Year of Study</label>
-                                <input type="text" placeholder="Year 3" required />
-                              </div>
-                            </>
-                          )}
-                        </>
-                      )}
 
                       <div className="input-group wide">
                         <label className="label">Access Key</label>
-                        <input type="password" placeholder="••••••••" required />
+                        <input 
+                          type="password" 
+                          placeholder="••••••••" 
+                          required 
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                        />
                       </div>
                     </div>
 
                     <div className="form-footer">
-                      <button className="btn-primary full-width" type="submit">
-                        {isLogin ? 'Request Access' : 'Initialize Identity'}
+                      <button className="btn-primary full-width" type="submit" disabled={loading}>
+                        {loading ? 'Processing...' : (isLogin ? 'Request Access' : 'Initialize Identity')}
                       </button>
                       <p>
                         {isLogin ? "New to the network?" : "Already verified?"} 
