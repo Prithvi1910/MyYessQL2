@@ -17,6 +17,7 @@ export interface Application {
   document_ids: string[]
   is_submitted: boolean
   created_at: string
+  updated_at?: string
   student?: {
     full_name: string
     username: string

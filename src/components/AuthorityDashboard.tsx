@@ -52,10 +52,9 @@ const AuthorityDashboard: React.FC = () => {
         { label: 'Approval History', active: false, id: 'approval-history' }
       ],
       principal: [
-        { label: 'Final Approvals', active: true },
-        { label: 'Certificate Queue', active: false },
-        { label: 'Full Student Registry', active: false },
-        { label: 'Institution Metrics', active: false }
+        { label: 'Final Approvals', active: true, id: 'pending-final' },
+        { label: 'Certificate Queue', active: false, id: 'cert-queue' },
+        { label: 'Full Student Registry', active: false, id: 'student-registry' }
       ],
       admin: [
         { label: 'CSV Dues Upload', active: true, id: 'dues-upload' },
