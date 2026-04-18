@@ -1,12 +1,9 @@
 import React, { useState } from 'react';
 import Navbar from './components/Navbar';
-import Hero from './components/Hero';
-import Pipeline from './components/Pipeline';
-import FeatureStack from './components/FeatureStack';
 import LandingPage from './components/LandingPage';
 import AuthModal from './components/AuthModal';
 import InteractiveBackground from './components/InteractiveBackground';
-import Footer from './components/Footer';
+import StudentDashboard from './components/StudentDashboard';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -15,7 +12,8 @@ function App() {
 
   const handleLogin = (type: 'student' | 'authority', userData: any) => {
     setIsAuthenticated(true);
-    setUser({ name: userData.name, type });
+    // Setting mock data as requested for Hritani Sharma
+    setUser({ name: "Hritani Sharma", type });
     setIsAuthModalOpen(false);
     window.scrollTo(0, 0);
   };
@@ -38,21 +36,16 @@ function App() {
         onLogout={handleLogout}
         onLoginClick={openAuthModal}
         onRegisterClick={openAuthModal}
+        studentName={user?.name}
       />
 
       <main>
         {!isAuthenticated ? (
           <LandingPage onGetStarted={openAuthModal} />
         ) : (
-          <>
-            <Hero isAuthenticated={isAuthenticated} />
-            <Pipeline />
-            <FeatureStack />
-          </>
+          <StudentDashboard />
         )}
       </main>
-
-      {!isAuthenticated && <Footer />}
 
       <AuthModal 
         isOpen={isAuthModalOpen} 
