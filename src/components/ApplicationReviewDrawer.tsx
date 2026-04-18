@@ -1,45 +1,61 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import type { Application, Approval, ApprovalRole, Document } from '../types/workflow'
+import type { Approval, ApprovalRole, Document, ParsedPurpose } from '../types/workflow'
 import ApplicationStatusTracker from './ApplicationStatusTracker'
+import { X, FileText, Image as ImageIcon, Download, CheckCircle, XCircle } from 'lucide-react'
 
 interface ApplicationReviewDrawerProps {
-  application: Application
-  approvals: Approval[]
+  application: any // Using any to accommodate different dashboard data structures
   actorRole: ApprovalRole
   readOnly?: boolean
+  approvals?: Approval[]
   onClose: () => void
   onAction: () => void
 }
 
 const ApplicationReviewDrawer: React.FC<ApplicationReviewDrawerProps> = ({
   application,
-  approvals,
+  approvals: initialApprovals,
   actorRole,
   readOnly = false,
   onClose,
   onAction
 }) => {
   const [documents, setDocuments] = useState<Document[]>([])
+  const [approvals, setApprovals] = useState<Approval[]>(initialApprovals || [])
   const [comment, setComment] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null)
 
   useEffect(() => {
-    const fetchDocs = async () => {
-      if (application.document_ids && application.document_ids.length > 0) {
-        const { data, error } = await supabase
-          .from('documents')
+    const fetchData = async () => {
+      try {
+        // Fetch Documents
+        if (application.document_ids && application.document_ids.length > 0) {
+          const { data: docs } = await supabase
+            .from('documents')
+            .select('*')
+            .in('id', application.document_ids)
+          if (docs) setDocuments(docs)
+        }
+
+        // Fetch Approvals for status tracker
+        const { data: apps } = await supabase
+          .from('approvals')
           .select('*')
-          .in('id', application.document_ids)
-        
-        if (!error && data) setDocuments(data)
+          .eq('application_id', application.id)
+          .order('updated_at', { ascending: true })
+        if (apps) setApprovals(apps)
+
+      } catch (err) {
+        console.error("Error fetching review data:", err)
       }
     }
-    fetchDocs()
-  }, [application.document_ids])
+    fetchData()
+  }, [application.id, application.document_ids])
 
-  const hasAlreadyActed = approvals.find(a => a.role === actorRole && a.status !== 'pending')
+  const myApproval = approvals.find(a => a.role === actorRole)
+  const hasAlreadyActed = myApproval && myApproval.status !== 'pending'
 
   const handleAction = async (status: 'approved' | 'rejected') => {
     setIsSubmitting(true)
@@ -49,14 +65,14 @@ const ApplicationReviewDrawer: React.FC<ApplicationReviewDrawerProps> = ({
         .update({
           status,
           comment,
-          actor_id: (await supabase.auth.getUser()).data.user?.id
+          actor_id: (await supabase.auth.getUser()).data.user?.id,
+          updated_at: new Date().toISOString()
         })
         .eq('application_id', application.id)
         .eq('role', actorRole)
 
       if (error) throw error
       onAction()
-      onClose()
     } catch (err) {
       alert("Error processing action. Please try again.")
     } finally {
@@ -64,236 +80,288 @@ const ApplicationReviewDrawer: React.FC<ApplicationReviewDrawerProps> = ({
     }
   }
 
+  const parsePurpose = (purposeStr: string | null | undefined): ParsedPurpose => {
+    try {
+      if (!purposeStr) return { type: 'N/A', notes: 'No notes provided.' }
+      return JSON.parse(purposeStr)
+    } catch {
+      return { type: purposeStr || 'N/A', notes: '' }
+    }
+  }
+
+  const purpose = parsePurpose(application.purpose)
+
+  const downloadDocument = async (doc: Document) => {
+    const path = doc.file_url.split('/').pop()
+    if (!path) return
+    
+    const { data, error } = await supabase.storage
+      .from('documents')
+      .download(path)
+    
+    if (error) {
+      console.error("Download error:", error)
+      return
+    }
+
+    const url = window.URL.createObjectURL(data)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', doc.file_name)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  }
+
   return (
-    <div className="drawer-overlay" onClick={onClose}>
-      <div className="drawer-side" onClick={e => e.stopPropagation()}>
-        <div className="drawer-header">
-          <div className="student-info">
-            <h3 className="serif">{application.student?.full_name || 'Student Name'}</h3>
-            <p className="label"> @{application.student?.username || 'username'}</p>
+    <>
+      <div className="review-drawer-overlay" onClick={onClose} />
+      <div className={`review-drawer-side ${selectedDoc ? 'split-view' : ''}`}>
+        <header className="drawer-header">
+          <div className="student-badge">
+            <h2 className="serif">{application.student?.full_name}</h2>
+            <div className="meta-row">
+              <span className="label text-accent">{application.student?.student_uid}</span>
+              <span className="separator">•</span>
+              <span className="label">{application.student?.department}</span>
+            </div>
           </div>
-          <button className="close-btn" onClick={onClose}>✕</button>
-        </div>
+          <button className="close-icon-btn" onClick={onClose}><X size={24} /></button>
+        </header>
 
-        <div className="drawer-content">
-          <section className="drawer-section">
-            <h4 className="section-title">CLEARANCE PROGRESS</h4>
-            <ApplicationStatusTracker application={application} approvals={approvals} />
-          </section>
-
-          <section className="drawer-section">
-            <h4 className="section-title">ATTACHED DOCUMENTS</h4>
-            <div className="docs-list">
-              {documents.length > 0 ? documents.map(doc => (
-                <div key={doc.id} className="doc-item">
-                  <div className="doc-meta">
-                    <div className="doc-name">{doc.file_name}</div>
-                    <div className="doc-type label">{doc.file_type.split('/')[1]?.toUpperCase() || 'FILE'}</div>
+        <div className="drawer-main-content">
+          <div className="drawer-scroll-content">
+            <section className="drawer-block">
+              <h4 className="block-title">APPLICATION DETAILS</h4>
+              <div className="details-card">
+                <div className="details-grid-secondary">
+                  <div className="detail-item">
+                    <span className="label">PURPOSE</span>
+                    <p className="value">{purpose.type}</p>
                   </div>
-                  <div className="doc-actions">
-                    <button className="action-link" onClick={() => setSelectedDoc(doc)}>View</button>
-                    <a href={doc.file_url} download className="action-link" target="_blank" rel="noreferrer">Download</a>
+                  <div className="detail-item">
+                    <span className="label">CGPA</span>
+                    <p className="value">{purpose.cgpa || 'N/A'}</p>
+                  </div>
+                  <div className="detail-item">
+                    <span className="label">PHONE</span>
+                    <p className="value">{purpose.phone || 'N/A'}</p>
                   </div>
                 </div>
-              )) : <p className="empty-state">No documents attached.</p>}
+
+                <div className="detail-item" style={{ marginTop: '20px' }}>
+                  <span className="label">ADDRESS</span>
+                  <p className="value">{purpose.address} {purpose.pincode ? `(PIN: ${purpose.pincode})` : ''}</p>
+                </div>
+
+                {purpose.notes && (
+                  <div className="detail-item" style={{ marginTop: '20px' }}>
+                    <span className="label">ADDITIONAL NOTES</span>
+                    <p className="value notes">{purpose.notes}</p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="drawer-block">
+              <h4 className="block-title">ATTACHED DOCUMENTS</h4>
+              <div className="docs-vertical-list">
+                {documents.length > 0 ? documents.map(doc => (
+                  <div 
+                    key={doc.id} 
+                    className={`doc-row-item ${selectedDoc?.id === doc.id ? 'active' : ''}`}
+                    onClick={() => setSelectedDoc(doc)}
+                  >
+                    <div className="doc-type-icon">
+                      {doc.file_type.includes('pdf') ? <FileText size={20} /> : <ImageIcon size={20} />}
+                    </div>
+                    <div className="doc-main-info">
+                      <span className="filename">{doc.file_name}</span>
+                      <span className="filedate label">{new Date(doc.uploaded_at).toLocaleDateString()}</span>
+                    </div>
+                    <div className="doc-row-actions">
+                      <button className="icon-action-btn" onClick={(e) => { e.stopPropagation(); downloadDocument(doc); }} title="Download"><Download size={18} /></button>
+                    </div>
+                  </div>
+                )) : <div className="empty-inline">No documents attached.</div>}
+              </div>
+            </section>
+
+            <section className="drawer-block">
+              <h4 className="block-title">APPROVAL TRAIL</h4>
+              <ApplicationStatusTracker application={application} approvals={approvals} />
+            </section>
+
+            {!readOnly && (
+              <section className="drawer-block action-area">
+                <h4 className="block-title">YOUR DECISION</h4>
+                {hasAlreadyActed ? (
+                  <div className={`decision-summary ${myApproval.status}`}>
+                    <div className="summary-header">
+                      {myApproval.status === 'approved' ? <CheckCircle size={20} /> : <XCircle size={20} />}
+                      <span>You {myApproval.status} this application</span>
+                    </div>
+                    {myApproval.comment && <p className="summary-comment">"{myApproval.comment}"</p>}
+                  </div>
+                ) : (
+                  <div className="action-form">
+                    <textarea 
+                      placeholder="Add a comment (visible to student)..."
+                      value={comment}
+                      onChange={e => setComment(e.target.value)}
+                      className="review-input"
+                    />
+                    <div className="button-group">
+                      <button 
+                        className="reject-btn" 
+                        onClick={() => handleAction('rejected')}
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting ? 'Processing...' : 'Reject'}
+                      </button>
+                      <button 
+                        className="approve-btn" 
+                        onClick={() => handleAction('approved')}
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting ? 'Processing...' : 'Approve Application'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+          </div>
+
+          {selectedDoc && (
+            <div className="side-document-viewer">
+              <header className="viewer-header">
+                <span className="label">VERIFICATION VIEW</span>
+                <button className="close-viewer-btn" onClick={() => setSelectedDoc(null)}><X size={16} /></button>
+              </header>
+              <div className="viewer-body">
+                {selectedDoc.file_type.includes('pdf') ? (
+                  <iframe src={selectedDoc.file_url} className="pdf-viewer-inline" title="PDF Viewer" />
+                ) : (
+                  <img src={selectedDoc.file_url} className="img-viewer-inline" alt="Document" />
+                )}
+              </div>
             </div>
-          </section>
-
-          {!readOnly && !hasAlreadyActed && (
-            <section className="drawer-section review-actions">
-              <h4 className="section-title">YOUR REVIEW</h4>
-              <textarea 
-                placeholder="Add a comment (optional)..."
-                value={comment}
-                onChange={e => setComment(e.target.value)}
-                className="review-textarea"
-              />
-              <div className="action-buttons">
-                <button 
-                  className="btn-reject" 
-                  disabled={isSubmitting}
-                  onClick={() => handleAction('rejected')}
-                >
-                  Reject
-                </button>
-                <button 
-                  className="btn-approve" 
-                  disabled={isSubmitting}
-                  onClick={() => handleAction('approved')}
-                >
-                  Approve Application
-                </button>
-              </div>
-            </section>
-          )}
-
-          {hasAlreadyActed && (
-            <section className="drawer-section review-history">
-              <h4 className="section-title">YOUR DECISION</h4>
-              <div className={`decision-badge ${hasAlreadyActed.status}`}>
-                {hasAlreadyActed.status.toUpperCase()}
-              </div>
-              {hasAlreadyActed.comment && (
-                <p className="decision-comment">"{hasAlreadyActed.comment}"</p>
-              )}
-            </section>
           )}
         </div>
       </div>
 
-      {/* Doc Viewer Modal */}
-      {selectedDoc && (
-        <div className="doc-viewer-layer" onClick={() => setSelectedDoc(null)}>
-          <div className="viewer-container" onClick={e => e.stopPropagation()}>
-            <div className="viewer-header">
-              <span>{selectedDoc.file_name}</span>
-              <button onClick={() => setSelectedDoc(null)}>✕</button>
-            </div>
-            <div className="viewer-body">
-              {selectedDoc.file_type.includes('image') ? (
-                <img src={selectedDoc.file_url} alt={selectedDoc.file_name} />
-              ) : (
-                <iframe src={selectedDoc.file_url} title="Document Viewer" />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       <style dangerouslySetInnerHTML={{ __html: `
-        .drawer-overlay {
+        .review-drawer-overlay {
           position: fixed;
           inset: 0;
           background: rgba(0,0,0,0.8);
-          backdrop-filter: blur(10px);
+          backdrop-filter: blur(8px);
           z-index: 1000;
-          display: flex;
-          justify-content: flex-end;
           animation: fadeIn 0.3s ease;
         }
-        .drawer-side {
+        .review-drawer-side {
+          position: fixed;
+          top: 0;
+          right: 0;
           width: 600px;
           height: 100%;
           background: #0a0a0a;
-          border-left: 1px solid #222;
+          z-index: 1001;
+          border-left: 1px solid #1a1a1a;
           display: flex;
           flex-direction: column;
-          box-shadow: -20px 0 50px rgba(0,0,0,0.5);
-          animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow: -20px 0 60px rgba(0,0,0,0.8);
+          animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+          transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        .review-drawer-side.split-view { width: 1200px; }
+        @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
+        .drawer-main-content { display: flex; flex: 1; overflow: hidden; }
+
         .drawer-header {
-          padding: 40px;
+          padding: 30px 40px;
+          border-bottom: 1px solid #1a1a1a;
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          border-bottom: 1px solid #1a1a1a;
         }
-        .student-info h3 { font-size: 1.8rem; margin: 0; }
-        .close-btn { font-size: 1.5rem; opacity: 0.5; transition: opacity 0.2s; }
-        .close-btn:hover { opacity: 1; }
+        .student-badge h2 { font-size: 1.8rem; margin: 0 0 4px 0; }
+        .meta-row { display: flex; align-items: center; gap: 12px; }
+        .separator { opacity: 0.3; }
+        .close-icon-btn { opacity: 0.5; transition: 0.2s; background: none; border: none; color: #fff; cursor: pointer; }
+        .close-icon-btn:hover { opacity: 1; color: var(--accent-color); }
 
-        .drawer-content {
+        .drawer-scroll-content {
           flex: 1;
           overflow-y: auto;
           padding: 40px;
           display: flex;
           flex-direction: column;
-          gap: 60px;
+          gap: 40px;
+          border-right: 1px solid #1a1a1a;
         }
-        .section-title {
-          font-size: 0.65rem;
-          letter-spacing: 0.2em;
-          color: #444;
-          margin-bottom: 24px;
-        }
-        .docs-list { display: flex; flex-direction: column; gap: 12px; }
-        .doc-item {
-          background: #0f0f0f;
-          border: 1px solid #1a1a1a;
-          padding: 16px 20px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border-radius: 4px;
-        }
-        .doc-name { font-size: 0.9rem; font-weight: 500; }
-        .doc-actions { display: flex; gap: 20px; }
-        .action-link { font-size: 0.75rem; color: var(--accent-color); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; }
+        .block-title { font-size: 0.6rem; letter-spacing: 0.2em; color: #444; margin-bottom: 16px; font-weight: 800; }
+        
+        .details-card { background: #0d0d0d; border: 1px solid #1a1a1a; padding: 20px; border-radius: 8px; }
+        .details-grid-secondary { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+        .detail-item .label { font-size: 0.55rem; color: #444; }
+        .detail-item .value { font-size: 0.95rem; font-weight: 600; margin-top: 2px; }
+        .detail-item .notes { font-size: 0.8rem; color: #777; line-height: 1.5; }
 
-        .review-textarea {
+        .docs-vertical-list { display: flex; flex-direction: column; gap: 8px; }
+        .doc-row-item {
+          display: flex;
+          align-items: center;
+          padding: 12px 16px;
+          background: #0d0d0d;
+          border: 1px solid #1a1a1a;
+          border-radius: 8px;
+          transition: 0.2s;
+          cursor: pointer;
+        }
+        .doc-row-item:hover { border-color: #333; background: #111; }
+        .doc-row-item.active { border-color: var(--accent-color); background: rgba(201, 168, 76, 0.03); }
+        .doc-type-icon { color: var(--accent-color); margin-right: 12px; opacity: 0.6; }
+        .doc-main-info { flex: 1; display: flex; flex-direction: column; }
+        .filename { font-size: 0.8rem; font-weight: 600; }
+        .filedate { font-size: 0.6rem; opacity: 0.4; }
+        .doc-row-actions { display: flex; gap: 8px; }
+        .icon-action-btn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: transparent; color: #444; transition: 0.2s; border: none; cursor: pointer; }
+        .icon-action-btn:hover { background: #222; color: var(--accent-color); }
+
+        .side-document-viewer { flex: 1; background: #000; display: flex; flex-direction: column; }
+        .viewer-header { padding: 12px 20px; background: #080808; border-bottom: 1px solid #1a1a1a; display: flex; justify-content: space-between; align-items: center; }
+        .viewer-header .label { font-size: 0.6rem; letter-spacing: 0.1em; color: var(--accent-color); font-weight: 800; }
+        .close-viewer-btn { background: none; border: none; color: #444; cursor: pointer; }
+        .viewer-body { flex: 1; position: relative; }
+        .pdf-viewer-inline { width: 100%; height: 100%; border: none; }
+        .img-viewer-inline { width: 100%; height: 100%; object-fit: contain; }
+
+        .action-form { display: flex; flex-direction: column; gap: 16px; }
+        .review-input {
           width: 100%;
-          height: 120px;
-          background: #0f0f0f;
+          min-height: 80px;
+          background: #0d0d0d;
           border: 1px solid #222;
           border-radius: 8px;
-          padding: 16px;
+          padding: 12px;
           color: white;
           font-family: inherit;
-          margin-bottom: 24px;
-          resize: none;
+          resize: vertical;
+          font-size: 0.85rem;
         }
-        .action-buttons { display: flex; gap: 16px; }
-        .btn-approve {
-          flex: 2;
-          background: var(--accent-color);
-          color: #000;
-          font-weight: 800;
-          padding: 16px;
-          border-radius: 8px;
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-          font-size: 0.8rem;
-        }
-        .btn-reject {
-          flex: 1;
-          background: #1a1a1a;
-          color: #EF4444;
-          border: 1px solid #332222;
-          padding: 16px;
-          border-radius: 8px;
-          font-weight: 600;
-        }
-
-        .decision-badge { padding: 8px 16px; border-radius: 4px; font-weight: 800; font-size: 0.7rem; display: inline-block; margin-bottom: 12px; }
-        .decision-badge.approved { background: rgba(16, 185, 129, 0.1); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.2); }
-        .decision-badge.rejected { background: rgba(239, 68, 68, 0.1); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.2); }
-        .decision-comment { font-style: italic; color: #666; font-size: 0.9rem; }
-
-        /* Viewer Modal */
-        .doc-viewer-layer {
-          position: fixed;
-          inset: 0;
-          background: rgba(0,0,0,0.95);
-          z-index: 2000;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .viewer-container {
-          width: 90%;
-          height: 90%;
-          background: #111;
-          display: flex;
-          flex-direction: column;
-          border-radius: 12px;
-          overflow: hidden;
-        }
-        .viewer-header {
-          padding: 20px 30px;
-          border-bottom: 1px solid #222;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          font-weight: 600;
-        }
-        .viewer-body { flex: 1; position: relative; }
-        .viewer-body iframe { width: 100%; height: 100%; border: none; }
-        .viewer-body img { width: 100%; height: 100%; object-fit: contain; }
+        .button-group { display: flex; gap: 12px; }
+        .approve-btn { flex: 2; background: var(--accent-color); color: #000; font-weight: 800; padding: 14px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.7rem; border: none; cursor: pointer; }
+        .reject-btn { flex: 1; background: transparent; color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.2); padding: 14px; border-radius: 8px; font-weight: 700; text-transform: uppercase; font-size: 0.7rem; cursor: pointer; }
+        
+        .decision-summary { padding: 20px; border-radius: 8px; }
+        .decision-summary.approved { background: rgba(16, 185, 129, 0.03); border: 1px solid rgba(16, 185, 129, 0.1); color: #10B981; }
+        .decision-summary.rejected { background: rgba(239, 68, 68, 0.03); border: 1px solid rgba(239, 68, 68, 0.1); color: #EF4444; }
       ` }} />
-    </div>
+    </>
   )
 }
 

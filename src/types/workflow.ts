@@ -1,5 +1,6 @@
-export type ApprovalRole = 'lab' | 'hod' | 'principal'
+export type ApprovalRole = 'librarian' | 'lab' | 'hod' | 'principal'
 export type ApplicationStatus =
+  | 'librarian_pending'
   | 'lab_pending'
   | 'hod_pending'
   | 'principal_pending'
@@ -12,6 +13,7 @@ export interface Application {
   status: ApplicationStatus
   current_stage: string
   department: string | null
+  purpose?: string | null
   document_ids: string[]
   is_submitted: boolean
   created_at: string
@@ -37,4 +39,22 @@ export interface Document {
   file_name: string
   file_type: string
   uploaded_at: string
+}
+
+export interface ApplicationWithStudent extends Application {
+  student: {
+    full_name: string
+    student_uid: string
+    department: string
+    username: string
+  }
+}
+
+export interface ParsedPurpose {
+  type: string
+  notes: string
+  cgpa?: string
+  phone?: string
+  address?: string
+  pincode?: string
 }

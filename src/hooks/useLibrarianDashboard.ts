@@ -3,8 +3,21 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import type { ApplicationWithStudent, Approval, Document } from '../types/workflow'
 
-export const useLabDashboard = () => {
+export interface DueRecord {
+  id: string
+  student_id: string
+  department: string
+  amount: number
+  status: 'pending' | 'paid'
+  student?: {
+    full_name: string
+    student_uid: string
+  }
+}
+
+export const useLibrarianDashboard = () => {
   const { user } = useAuth()
+  const [dues, setDues] = useState<DueRecord[]>([])
   const [stats, setStats] = useState({ awaiting: 0, approved: 0, rejected: 0 })
   const [applications, setApplications] = useState<ApplicationWithStudent[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -16,29 +29,23 @@ export const useLabDashboard = () => {
     setError(null)
 
     try {
-      // Get lab user's profile and department
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('department, role')
-        .eq('id', user.id)
-        .single()
+      // 1. Fetch Dues
+      const { data: duesData, error: duesError } = await supabase
+        .from('dues')
+        .select(`
+          *,
+          student:profiles(full_name, student_uid)
+        `)
+        .order('status', { ascending: false })
 
-      if (profileError) throw profileError
+      if (duesError) throw duesError
+      setDues(duesData as any[] || [])
 
-      if (!profile?.department) {
-        throw new Error("No department assigned to your profile.")
-      }
-
-      // 1. Fetch Stats in a single query-like fashion
-      // Using joins to get counts for this specific authority
+      // 2. Fetch Stats for Librarian Approvals
       const { data: statsData, error: statsError } = await supabase
         .from('approvals')
-        .select(`
-          status,
-          applications!inner(department)
-        `)
-        .eq('role', 'lab')
-        .eq('applications.department', profile.department)
+        .select(`status, application_id`)
+        .eq('role', 'librarian')
 
       if (statsError) throw statsError
 
@@ -51,15 +58,15 @@ export const useLabDashboard = () => {
 
       setStats(counts)
 
-      // 2. Fetch Applications at 'lab' stage in this department
+      // 3. Fetch Applications at 'librarian' stage
+      // Note: Librarians see all departments, so no department filter
       const { data, error: appError } = await supabase
         .from('applications')
         .select(`
           *,
           student:profiles!inner(full_name, student_uid, department, username)
         `)
-        .eq('department', profile.department)
-        .eq('current_stage', 'lab')
+        .eq('current_stage', 'librarian')
         .eq('is_submitted', true)
         .order('created_at', { ascending: false })
 
@@ -77,17 +84,70 @@ export const useLabDashboard = () => {
     fetchData()
   }, [user])
 
+  // ... Dues logic ...
+  const uploadCSV = async (csvData: string) => {
+    setIsLoading(true)
+    try {
+      const lines = csvData.split('\n')
+      const records = lines.slice(1).filter(line => line.trim() !== '')
+
+      const newDues = []
+      for (const line of records) {
+        const [student_uid, amount, department] = line.split(',')
+        
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('student_uid', student_uid.trim())
+          .maybeSingle()
+
+        if (profile) {
+          newDues.push({
+            student_id: profile.id,
+            amount: parseInt(amount.trim()),
+            department: department.trim(),
+            status: 'pending'
+          })
+        }
+      }
+
+      if (newDues.length > 0) {
+        const { error: insertError } = await supabase
+          .from('dues')
+          .insert(newDues)
+        if (insertError) throw insertError
+      }
+
+      await fetchData()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const updateDueStatus = async (dueId: string, status: 'pending' | 'paid') => {
+    try {
+      const { error } = await supabase
+        .from('dues')
+        .update({ status })
+        .eq('id', dueId)
+      if (error) throw error
+      
+      setDues(prev => prev.map(d => d.id === dueId ? { ...d, status } : d))
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  // ... Applications Logic ...
   const fetchApplicationDocuments = async (docIds: string[]): Promise<Document[]> => {
     if (!docIds || docIds.length === 0) return []
     const { data, error } = await supabase
       .from('documents')
       .select('*')
       .in('id', docIds)
-    
-    if (error) {
-      setError(error.message)
-      return []
-    }
+    if (error) { setError(error.message); return [] }
     return data || []
   }
 
@@ -97,11 +157,7 @@ export const useLabDashboard = () => {
       .select('*')
       .eq('application_id', applicationId)
       .order('updated_at', { ascending: true })
-    
-    if (error) {
-      setError(error.message)
-      return []
-    }
+    if (error) { setError(error.message); return [] }
     return data || []
   }
 
@@ -110,18 +166,11 @@ export const useLabDashboard = () => {
     try {
       const { error } = await supabase
         .from('approvals')
-        .update({
-          status: 'approved',
-          comment,
-          actor_id: user?.id,
-          updated_at: new Date().toISOString()
-        })
+        .update({ status: 'approved', comment, actor_id: user?.id, updated_at: new Date().toISOString() })
         .eq('application_id', applicationId)
-        .eq('role', 'lab')
+        .eq('role', 'librarian')
 
       if (error) throw error
-      
-      // Optimistic update
       setApplications(prev => prev.filter(app => app.id !== applicationId))
       setStats(prev => ({ ...prev, awaiting: prev.awaiting - 1, approved: prev.approved + 1 }))
     } catch (err: any) {
@@ -136,18 +185,11 @@ export const useLabDashboard = () => {
     try {
       const { error } = await supabase
         .from('approvals')
-        .update({
-          status: 'rejected',
-          comment,
-          actor_id: user?.id,
-          updated_at: new Date().toISOString()
-        })
+        .update({ status: 'rejected', comment, actor_id: user?.id, updated_at: new Date().toISOString() })
         .eq('application_id', applicationId)
-        .eq('role', 'lab')
+        .eq('role', 'librarian')
 
       if (error) throw error
-      
-      // Optimistic update
       setApplications(prev => prev.filter(app => app.id !== applicationId))
       setStats(prev => ({ ...prev, awaiting: prev.awaiting - 1, rejected: prev.rejected + 1 }))
     } catch (err: any) {
@@ -158,15 +200,17 @@ export const useLabDashboard = () => {
   }
 
   return {
-    profile: null, // We can fetch this if needed, but it's used internally
+    dues,
     stats,
     applications,
     isLoading,
+    error,
+    uploadCSV,
+    updateDueStatus,
     fetchApplicationDocuments,
     fetchApplicationApprovals,
     approveApplication,
     rejectApplication,
-    error,
     refresh: fetchData
   }
 }

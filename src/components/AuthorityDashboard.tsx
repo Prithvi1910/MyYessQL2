@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import LabDashboardPanel from './LabDashboardPanel';
 import HodDashboardPanel from './HodDashboardPanel';
 import PrincipalDashboardPanel from './PrincipalDashboardPanel';
+import LibrarianDashboardPanel from './LibrarianDashboardPanel';
 
 const AuthorityDashboard: React.FC = () => {
   const { profile, signOut } = useAuthority();
@@ -19,7 +20,8 @@ const AuthorityDashboard: React.FC = () => {
       case 'lab': return 'Lab Assistant';
       case 'hod': return 'Head of Department';
       case 'principal': return 'Principal';
-      case 'admin': return 'Librarian';
+      case 'admin':
+      case 'librarian': return 'Librarian';
       default: return 'Portal';
     }
   };
@@ -53,12 +55,18 @@ const AuthorityDashboard: React.FC = () => {
         { label: 'Cleared Students', active: false },
         { label: 'System Logs', active: false }
       ],
+      librarian: [
+        { label: 'CSV Dues Upload', active: true },
+        { label: 'Student Dues Registry', active: false },
+        { label: 'Cleared Students', active: false },
+        { label: 'System Logs', active: false }
+      ],
     };
 
     const roleLinks = links[role as string] || [];
 
     return roleLinks.map((link: { label: string; active: boolean }, i: number) => (
-      <div key={i} className={`nav-item \${link.active ? 'active' : ''}`}>
+      <div key={i} className={`nav-item ${link.active ? 'active' : ''}`}>
         {link.label}
       </div>
     ));
@@ -101,12 +109,15 @@ const AuthorityDashboard: React.FC = () => {
         title: 'Librarian Dashboard',
         subtext: 'Library Resource & Central Dues Registry',
         theme: '#10B981',
-        stats: [
-          { label: 'Outstanding Dues', val: '56' },
-          { label: 'Cleared Records', val: '512' },
-          { label: 'Last CSV Upload', val: '2h ago' }
-        ],
-        placeholder: 'Manage student library accounts, book returns, and mass-import dues data via institutional CSV files.'
+        stats: [],
+        component: <LibrarianDashboardPanel />
+      },
+      librarian: {
+        title: 'Librarian Dashboard',
+        subtext: 'Library Resource & Central Dues Registry',
+        theme: '#10B981',
+        stats: [],
+        component: <LibrarianDashboardPanel />
       }
     };
 

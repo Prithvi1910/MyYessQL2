@@ -30,7 +30,8 @@ create table public.profiles (
   full_name text,
   avatar_url text,
   student_uid text,
-  role text default 'student' check (role in ('student', 'lab', 'hod', 'principal', 'admin')),
+  department text,
+  role text default 'student' check (role in ('student', 'librarian', 'lab', 'hod', 'principal', 'admin')),
 
   constraint username_length check (char_length(username) >= 3),
   constraint student_uid_length check (student_uid is null or char_length(student_uid) = 10)
@@ -43,6 +44,7 @@ create table public.applications (
   status text default 'lab_pending' check (status in ('lab_pending', 'hod_pending', 'principal_pending', 'approved', 'rejected')),
   current_stage text default 'lab',
   department text,
+  purpose text,
   document_ids uuid[] default '{}',
   is_submitted boolean default false,
   created_at timestamp with time zone default now()
@@ -100,7 +102,7 @@ begin
   return exists (
     select 1 from public.profiles 
     where id = auth.uid() 
-    and role in ('lab', 'hod', 'principal', 'admin')
+    and role in ('librarian', 'lab', 'hod', 'principal', 'admin')
   );
 end;
 $$ language plpgsql security definer;
@@ -109,16 +111,19 @@ $$ language plpgsql security definer;
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, full_name, role, student_uid)
+  insert into public.profiles (id, full_name, role, student_uid, department)
   values (
     new.id, 
     new.raw_user_meta_data->>'full_name', 
     coalesce(new.raw_user_meta_data->>'role', 'student'),
-    new.raw_user_meta_data->>'student_uid'
-  );
+    nullif(new.raw_user_meta_data->>'student_uid', ''),
+    nullif(new.raw_user_meta_data->>'department', '')
+  )
+  on conflict (id) do nothing;
   return new;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer
+set search_path = public;
 
 create trigger on_auth_user_created
   after insert on auth.users
@@ -230,11 +235,17 @@ using (
   and is_submitted = true
 );
 
+create policy "Librarian sees all submitted applications" on applications for select
+using (
+  (select role from public.profiles where id = auth.uid()) = 'librarian'
+  and is_submitted = true
+);
+
 -- RLS: Approvals
 create policy "Authorities update own role approvals only" on approvals for update
 using (
   role = (select role from public.profiles where id = auth.uid())
-  and (select role from public.profiles where id = auth.uid()) in ('lab', 'hod', 'principal')
+  and (select role from public.profiles where id = auth.uid()) in ('librarian', 'lab', 'hod', 'principal')
 );
 
 create policy "Authorities read approvals" on approvals for select
@@ -282,6 +293,23 @@ with check (auth.uid() = student_id);
 
 create policy "Only students can delete their own docs." on documents for delete
 using (auth.uid() = student_id);
+
+-- RLS: Dues
+create policy "Students can view their own dues." on dues for select
+using (auth.uid() = student_id);
+
+create policy "Librarians can view all dues." on dues for select
+using (
+  (select role from public.profiles where id = auth.uid()) in ('librarian', 'admin')
+);
+
+create policy "Librarians can manage dues." on dues for all
+using (
+  (select role from public.profiles where id = auth.uid()) in ('librarian', 'admin')
+)
+with check (
+  (select role from public.profiles where id = auth.uid()) in ('librarian', 'admin')
+);
 
 -- ============================================================================
 -- 7. REQUIRED SCHEMA GRANTS
