@@ -1,30 +1,28 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import LandingPage from './components/LandingPage';
 import AuthModal from './components/AuthModal';
 import InteractiveBackground from './components/InteractiveBackground';
-import StudentDashboard from './components/StudentDashboard';
+import Footer from './components/Footer';
+import ProtectedRoute from './components/ProtectedRoute';
+import { useAuth } from './contexts/AuthContext';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { user, loading } = useAuth();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [user, setUser] = useState<{ name: string; type: 'student' | 'authority' } | null>(null);
-
-  const handleLogin = (type: 'student' | 'authority', userData: any) => {
-    setIsAuthenticated(true);
-    // Setting mock data as requested for Hritani Sharma
-    setUser({ name: "Hritani Sharma", type });
-    setIsAuthModalOpen(false);
-    window.scrollTo(0, 0);
-  };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setUser(null);
-  };
 
   const openAuthModal = () => setIsAuthModalOpen(true);
   const closeAuthModal = () => setIsAuthModalOpen(false);
+
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <InteractiveBackground />
+        <div className="loader"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -32,25 +30,57 @@ function App() {
       <div className="grain-overlay"></div>
       
       <Navbar 
-        isAuthenticated={isAuthenticated} 
-        onLogout={handleLogout}
         onLoginClick={openAuthModal}
         onRegisterClick={openAuthModal}
         studentName={user?.name}
       />
 
       <main>
-        {!isAuthenticated ? (
-          <LandingPage onGetStarted={openAuthModal} />
-        ) : (
-          <StudentDashboard />
-        )}
+        <Routes>
+          <Route path="/" element={
+            !user ? (
+              <LandingPage onGetStarted={openAuthModal} />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          } />
+          
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <>
+                <Hero isAuthenticated={true} />
+                <Pipeline />
+                <FeatureStack />
+              </>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/admin" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <div className="admin-dashboard">
+                <h1>Admin Dashboard</h1>
+                <p>Welcome, administrator. Here you can manage the application.</p>
+                {/* Admin specific components will go here */}
+              </div>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/unauthorized" element={
+            <div className="error-page">
+              <h1>Unauthorized Access</h1>
+              <p>You do not have permission to view this page.</p>
+            </div>
+          } />
+
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
+
+      {!user && <Footer />}
 
       <AuthModal 
         isOpen={isAuthModalOpen} 
         onClose={closeAuthModal} 
-        onLogin={handleLogin} 
       />
     </div>
   );
