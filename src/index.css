@@ -277,7 +277,14 @@ button {
   color: var(--accent-color);
 }
 
-/* Feature Sections */
+/* Feature Sections- [x] Create `InteractiveBackground.tsx` and move particle logic from `Hero.tsx`
+- [/] Update `index.css` with Modal and Landing Page styles: 80vh;
+  display: flex;
+  align-items: center;
+  position: relative;
+  border-bottom: 1px solid var(--border-color);
+}
+
 .features {
   background: var(--bg-color);
 }
@@ -627,5 +634,245 @@ button {
     left: 15px;
     width: 1px;
     height: 100%;
+  }
+}
+
+/* Login Page Specific Styles */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  position: relative;
+  background: radial-gradient(circle at 10% 10%, rgba(201, 168, 76, 0.03) 0%, transparent 40%),
+              radial-gradient(circle at 90% 90%, rgba(201, 168, 76, 0.03) 0%, transparent 40%);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 600px;
+  background: rgba(10, 10, 10, 0.8);
+  backdrop-filter: blur(40px);
+  border: 1px solid var(--border-color);
+  padding: 60px;
+  position: relative;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5);
+}
+
+.login-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 40px;
+  background: var(--accent-color);
+}
+
+.login-header {
+  margin-bottom: 40px;
+  text-align: center;
+}
+
+.login-header .title {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}
+
+.login-header .subtitle {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
+}
+
+.form-switcher {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  margin-bottom: 40px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.switch-btn {
+  padding: 12px 10px;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.switch-btn.active {
+  color: var(--text-primary);
+}
+
+.switch-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: var(--accent-color);
+}
+
+.auth-type-toggle {
+  display: flex;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 4px;
+  border-radius: 2px;
+  margin-bottom: 40px;
+}
+
+.type-btn {
+  flex: 1;
+  padding: 10px;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  transition: all 0.3s ease;
+}
+
+.type-btn.active {
+  background: var(--accent-color);
+  color: #000;
+  font-weight: 700;
+}
+
+.signup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px 30px;
+}
+
+.wide {
+  grid-column: span 2;
+}
+
+.form-footer {
+  margin-top: 40px;
+  text-align: center;
+}
+
+.form-footer p {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin-top: 20px;
+}
+
+.form-footer span {
+  color: var(--accent-color);
+  cursor: pointer;
+}
+
+/* Animations */
+.fade-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.fade-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+@media (max-width: 600px) {
+  .login-card {
+    padding: 30px;
+  }
+  .signup-grid {
+    grid-template-columns: 1fr;
+  }
+  .wide {
+    grid-column: span 1;
+  }
+}
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-content {
+  width: 100%;
+  max-width: 600px;
+  position: relative;
+  z-index: 1001;
+}
+
+/* Landing Page Structure */
+.landing-page {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-landing {
+  min-height: 90vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding-top: 100px;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 40px;
+  padding: 80px 0;
+}
+
+.feature-block {
+  padding: 40px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.feature-block:hover {
+  background: rgba(201, 168, 76, 0.05);
+  border-color: var(--accent-color);
+  transform: translateY(-10px);
+}
+
+.feature-block .title {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  color: var(--accent-color);
+}
+
+.feature-block .desc {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+/* Redefine sections to be transparent enough for particles */
+section, .hero, .features, .auth {
+  background: transparent !important;
+}
+
+.app {
+  position: relative;
+  overflow-x: hidden;
+}
+
+@media (max-width: 900px) {
+  .feature-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
 }

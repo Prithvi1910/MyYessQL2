@@ -1,6 +1,13 @@
 import React from 'react';
 
-const Navbar = () => {
+interface NavbarProps {
+  onLogout?: () => void;
+  onLoginClick?: () => void;
+  onRegisterClick?: () => void;
+  isAuthenticated?: boolean;
+}
+
+const Navbar: React.FC<NavbarProps> = ({ onLogout, onLoginClick, onRegisterClick, isAuthenticated }) => {
   return (
     <nav className="navbar">
       <div className="container nav-container">
@@ -8,12 +15,34 @@ const Navbar = () => {
           <div className="logo-icon" />
           <div className="logo serif italic">NEXUS</div>
         </div>
+        
         <div className="nav-links">
-          <a href="#" className="label">Portal</a>
-          <a href="#" className="label">Protocol</a>
-          <a href="#" className="label">Registry</a>
+          {!isAuthenticated ? (
+            <>
+              <button onClick={onLoginClick} className="label">Log In</button>
+              <button onClick={onRegisterClick} className="label">Register</button>
+            </>
+          ) : (
+            <>
+              <a href="#" className="label">Portal</a>
+              <a href="#" className="label">Protocol</a>
+              <a href="#" className="label">Registry</a>
+              <button 
+                onClick={onLogout} 
+                className="label" 
+                style={{ color: 'var(--accent-color)', cursor: 'pointer', marginLeft: '20px' }}
+              >
+                Sign Out
+              </button>
+            </>
+          )}
         </div>
-        <button className="nav-menu label">Menu</button>
+
+        {!isAuthenticated ? (
+          <button className="btn-primary" style={{ padding: '8px 20px', fontSize: '0.6rem' }}>Portal Access</button>
+        ) : (
+          <button onClick={onLogout} className="nav-menu label">Secure Out</button>
+        )}
       </div>
     </nav>
   );
