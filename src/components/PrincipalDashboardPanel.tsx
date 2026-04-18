@@ -2,12 +2,13 @@ import React, { useState } from 'react'
 import { usePrincipalDashboard } from '../hooks/usePrincipalDashboard'
 import type { Application } from '../types/workflow'
 import ApplicationReviewDrawer from './ApplicationReviewDrawer'
-import { FileText, Clock, ShieldCheck, Search, RefreshCw, AlertCircle } from 'lucide-react'
+import { FileText, Search, RefreshCw, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import CertificateGenerator from './CertificateGenerator'
 
 const PrincipalDashboardPanel: React.FC = () => {
   const { 
-    stats, applications, certificateQueue, studentRegistry, 
+    applications, certificateQueue, studentRegistry, 
     isLoading, refresh, error 
   } = usePrincipalDashboard()
   
@@ -78,7 +79,13 @@ const PrincipalDashboardPanel: React.FC = () => {
                     <td><span className="dept-badge">{app.department}</span></td>
                     <td>{new Date(app.updated_at || app.created_at).toLocaleDateString()}</td>
                     <td className="text-right">
-                      <button className="nexus-btn-primary small">GENERATE CERTIFICATE</button>
+                      <CertificateGenerator 
+                        studentName={app.student?.full_name || 'N/A'}
+                        studentUid={app.student?.student_uid || 'N/A'}
+                        department={app.department || 'N/A'}
+                        completionDate={app.updated_at || app.created_at}
+                        applicationId={app.id}
+                      />
                     </td>
                   </tr>
                 )) : (

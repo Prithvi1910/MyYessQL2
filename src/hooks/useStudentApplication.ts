@@ -16,6 +16,8 @@ export const useStudentApplication = () => {
   const [error, setError] = useState<string | null>(null)
 
   const saveTimeoutRef = useRef<any>(null)
+  // Track the current application ID in a ref to avoid stale closures
+  const applicationIdRef = useRef<string | null>(null)
 
   const fetchData = async () => {
     if (!user) {
@@ -36,7 +38,6 @@ export const useStudentApplication = () => {
       if (profileError) throw profileError
       
       if (!profileData) {
-        // Self-healing: Create profile if missing
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
           .insert([{
@@ -64,6 +65,8 @@ export const useStudentApplication = () => {
 
       if (appError) throw appError
       setApplication(appData)
+      // Keep ref in sync — avoids triggering useEffect on every render
+      applicationIdRef.current = appData?.id ?? null
 
       if (appData) {
         // 2. Fetch Approvals
@@ -105,36 +108,33 @@ export const useStudentApplication = () => {
   useEffect(() => {
     fetchData()
 
-    // 1. Real-time Subscription
     const channel = supabase
       .channel(`student-updates-${user?.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'applications', filter: `student_id=eq.${user?.id}` }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'dues', filter: `student_id=eq.${user?.id}` }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'approvals' }, (payload) => {
-        // Only refresh if the approval belongs to the current application
-        if (application && payload.new && (payload.new as any).application_id === application.id) {
+        // Use the ref (not state) to avoid stale closure & infinite re-subscribe
+        if (applicationIdRef.current && payload.new && (payload.new as any).application_id === applicationIdRef.current) {
           fetchData()
         }
       })
       .subscribe()
 
-    // 2. Polling Fallback (Every 5 seconds)
-    const interval = setInterval(() => {
-      fetchData()
-    }, 5000)
+    // Polling fallback — every 10 seconds (not 5s) to avoid hammering
+    const interval = setInterval(() => fetchData(), 10000)
 
     return () => {
       supabase.removeChannel(channel)
       clearInterval(interval)
     }
-  }, [user, application?.id])
+  // CRITICAL FIX: Only depend on user.id (a primitive), NOT on application object
+  }, [user?.id])
 
   const createApplication = async () => {
     setIsLoading(true)
     setError(null)
 
     try {
-      // Step 1: Verify session exists
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       if (sessionError || !session) {
         setError('You must be logged in to create an application. Please log in again.')
@@ -144,7 +144,6 @@ export const useStudentApplication = () => {
 
       const userId = session.user.id
 
-      // Step 2: Fetch student profile
       const { data: existingProfile, error: profileError } = await supabase
         .from('profiles')
         .select('id, full_name, student_uid, department, role')
@@ -183,7 +182,6 @@ export const useStudentApplication = () => {
         return
       }
 
-      // Step 3: Check if application already exists
       const { data: existing } = await supabase
         .from('applications')
         .select('id')
@@ -197,7 +195,6 @@ export const useStudentApplication = () => {
         return
       }
 
-      // Step 4: Insert application
       const { data: newApp, error: insertError } = await supabase
         .from('applications')
         .insert([{
@@ -216,8 +213,8 @@ export const useStudentApplication = () => {
         return
       }
 
-      // Step 5: Success — set application and move to State B
       setApplication(newApp)
+      applicationIdRef.current = newApp.id
     } catch (err: any) {
       setError(`An unexpected error occurred: ${err.message}`)
     } finally {
@@ -228,7 +225,6 @@ export const useStudentApplication = () => {
   const updateField = useCallback(async (field: string, value: any) => {
     if (!application || application.is_submitted) return
 
-    // Optimistic update
     setApplication(prev => prev ? { ...prev, [field]: value } : null)
     setIsSaving(true)
 
@@ -255,7 +251,6 @@ export const useStudentApplication = () => {
   const updateDocumentSelection = async (docIds: string[]) => {
     if (!application || application.is_submitted) return
 
-    // Optimistic update
     setApplication(prev => prev ? { ...prev, document_ids: docIds } : null)
     setIsSaving(true)
 
@@ -279,7 +274,6 @@ export const useStudentApplication = () => {
     if (!application) return
     setIsLoading(true)
     try {
-      // Step 1: Submit the application and ensure the department is saved
       const { error: submitError } = await supabase
         .from('applications')
         .update({
@@ -289,8 +283,6 @@ export const useStudentApplication = () => {
         .eq('id', application.id)
 
       if (submitError) throw submitError;
-
-      // Final refresh
       await fetchData()
     } catch (err: any) {
       setError(err.message)
@@ -304,7 +296,6 @@ export const useStudentApplication = () => {
     setIsLoading(true)
     
     try {
-      // 1. Generate Receipt
       const { generateReceipt } = await import('../lib/ReceiptGenerator')
       
       const totalAmount = paidDues.reduce((sum, d) => sum + d.amount, 0)
@@ -320,9 +311,7 @@ export const useStudentApplication = () => {
         date: new Date().toLocaleString()
       })
 
-      // 2. Automate Pipeline Advancement
       if (application.is_submitted && application.current_stage !== 'done') {
-        // If already in the pipeline (e.g., blocked by Librarian), automatically approve current stage
         const { error: approvalError } = await supabase
           .from('approvals')
           .update({ 
@@ -335,7 +324,6 @@ export const useStudentApplication = () => {
 
         if (approvalError) throw approvalError
 
-        // CRITICAL: Advance the application stage in the applications table
         if (application.current_stage === 'librarian') {
           const { error: stageError } = await supabase
             .from('applications')
@@ -344,31 +332,29 @@ export const useStudentApplication = () => {
           if (stageError) throw stageError
         }
       } else if (!application.is_submitted) {
-        // If not submitted yet, automatically submit it now that dues are clear
         const { error: submitError } = await supabase
           .from('applications')
           .update({
             is_submitted: true,
             department: application.department,
-            current_stage: 'librarian' // Ensure it starts at librarian
+            current_stage: 'librarian'
           })
           .eq('id', application.id)
 
         if (submitError) throw submitError
       }
 
-      // Final refresh
       await fetchData()
 
-      // 3. Broadcast to Librarian Dashboard for instantaneous sync
-      const channel = supabase.channel('global-sync-bridge')
-      await channel.subscribe()
-      await channel.send({
+      // Broadcast to Librarian Dashboard
+      const syncChannel = supabase.channel('global-sync-bridge')
+      await syncChannel.subscribe()
+      await syncChannel.send({
         type: 'broadcast',
         event: 'PAYMENT_COMPLETED',
         payload: { studentId: profile.id }
       })
-      supabase.removeChannel(channel)
+      supabase.removeChannel(syncChannel)
     } catch (err: any) {
       setError('Payment logged, but failed to advance pipeline: ' + err.message)
     } finally {

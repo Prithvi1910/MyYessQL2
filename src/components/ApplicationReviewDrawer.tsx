@@ -26,6 +26,7 @@ const ApplicationReviewDrawer: React.FC<ApplicationReviewDrawerProps> = ({
   const [comment, setComment] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -52,29 +53,112 @@ const ApplicationReviewDrawer: React.FC<ApplicationReviewDrawerProps> = ({
       }
     }
     fetchData()
-  }, [application.id, application.document_ids])
+  // CRITICAL: only depend on application.id (a stable string).
+  // document_ids is an array — new reference on every render = infinite loop.
+  }, [application.id])
 
   const myApproval = approvals.find(a => a.role === actorRole)
   const hasAlreadyActed = myApproval && myApproval.status !== 'pending'
 
   const handleAction = async (status: 'approved' | 'rejected') => {
     setIsSubmitting(true)
-    try {
-      const { error } = await supabase
-        .from('approvals')
-        .update({
-          status,
-          comment,
-          actor_id: (await supabase.auth.getUser()).data.user?.id,
-          updated_at: new Date().toISOString()
-        })
-        .eq('application_id', application.id)
-        .eq('role', actorRole)
+    setActionError(null)
 
-      if (error) throw error
+    // Guard against demo/mock data that has no real DB record
+    if (application.id.startsWith('p-mock') || application.id.startsWith('l-mock') || application.id.startsWith('h-mock') || application.id.startsWith('cert-demo')) {
+      setActionError('This is demo data only. Submit a real application to use this feature.')
+      setIsSubmitting(false)
+      return
+    }
+
+    try {
+      const actorId = (await supabase.auth.getUser()).data.user?.id
+
+      if (status === 'approved') {
+        // Use upsert so this works even if the approval row doesn't exist yet
+        const { error: approvalError } = await supabase
+          .from('approvals')
+          .upsert({
+            application_id: application.id,
+            role: actorRole,
+            status: 'approved',
+            comment,
+            actor_id: actorId,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'application_id,role' })
+
+        if (approvalError) throw approvalError
+
+        // Advance stage
+        const stageAdvanceMap: Record<string, string> = {
+          librarian: 'lab',
+          lab: 'hod',
+          hod: 'principal'
+        }
+
+        if (actorRole === 'principal') {
+          const { error: appError } = await supabase
+            .from('applications')
+            .update({ status: 'approved', current_stage: 'approved' })
+            .eq('id', application.id)
+          if (appError) throw appError
+        } else {
+          const nextStage = stageAdvanceMap[actorRole] || actorRole
+          const { error: appError } = await supabase
+            .from('applications')
+            .update({ current_stage: nextStage })
+            .eq('id', application.id)
+          if (appError) throw appError
+        }
+
+      } else {
+        // REJECTION — regress application to previous stage for re-review
+        const stageRegressMap: Record<string, { stage: string; status: string; resetRole: string | null }> = {
+          principal: { stage: 'hod',      status: 'hod_pending',      resetRole: 'hod' },
+          hod:       { stage: 'lab',       status: 'lab_pending',       resetRole: 'lab' },
+          lab:       { stage: 'librarian', status: 'librarian_pending', resetRole: 'librarian' },
+          librarian: { stage: 'librarian', status: 'librarian_pending', resetRole: null }
+        }
+        const regression = stageRegressMap[actorRole]
+
+        // 1. Mark THIS actor's approval as rejected
+        await supabase
+          .from('approvals')
+          .upsert({
+            application_id: application.id,
+            role: actorRole,
+            status: 'rejected',
+            comment,
+            actor_id: actorId,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'application_id,role' })
+
+        // 2. Reset the PREVIOUS stage's approval back to pending
+        if (regression.resetRole) {
+          await supabase
+            .from('approvals')
+            .upsert({
+              application_id: application.id,
+              role: regression.resetRole,
+              status: 'pending',
+              comment: null,
+              actor_id: null,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'application_id,role' })
+        }
+
+        // 3. Regress the application stage
+        const { error: appError } = await supabase
+          .from('applications')
+          .update({ status: regression.status as any, current_stage: regression.stage })
+          .eq('id', application.id)
+        if (appError) throw appError
+      }
+
       onAction()
-    } catch (err) {
-      alert("Error processing action. Please try again.")
+    } catch (err: any) {
+      console.error('Action error:', err)
+      setActionError(err.message || 'An error occurred. Please try again.')
     } finally {
       setIsSubmitting(false)
     }
@@ -211,6 +295,11 @@ const ApplicationReviewDrawer: React.FC<ApplicationReviewDrawerProps> = ({
                       onChange={e => setComment(e.target.value)}
                       className="review-input"
                     />
+                    {actionError && (
+                      <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '12px 16px', color: '#EF4444', fontSize: '0.85rem', marginBottom: '12px' }}>
+                        ⚠ {actionError}
+                      </div>
+                    )}
                     <div className="button-group">
                       <button 
                         className="reject-btn" 

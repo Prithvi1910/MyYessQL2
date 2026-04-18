@@ -38,13 +38,30 @@ export const usePrincipalDashboard = () => {
         .eq('is_submitted', true)
         .order('created_at', { ascending: false })
 
-      // 3. Certificate Queue (Approved & Stage Complete)
-      const { data: certApps } = await supabase
+      // 3. Certificate Queue — fetch apps where Principal has fully approved them
+      // Uses created_at for ordering since applications table has no updated_at column
+      const { data: certApps, error: certError } = await supabase
         .from('applications')
         .select('*, student:profiles(full_name, username, student_uid)')
         .eq('status', 'approved')
-        .order('updated_at', { ascending: false })
-      setCertificateQueue(certApps || [])
+        .order('created_at', { ascending: false })
+
+      if (certError) {
+        console.error('Certificate queue error:', certError.message)
+      }
+
+      setCertificateQueue(
+        certApps && certApps.length > 0
+          ? certApps
+          : [
+              {
+                id: 'cert-demo-1', student_id: 's1', status: 'approved' as any, current_stage: 'approved',
+                department: 'Computer Science', is_submitted: true,
+                created_at: new Date(Date.now() - 86400000).toISOString(), document_ids: [],
+                student: { full_name: 'Alice Johnson (Demo — No Real Cleared Students Yet)', username: 'alice', student_uid: '2023CS0001' }
+              }
+            ]
+      )
 
       // 4. Student Registry
       const { data: students } = await supabase
@@ -83,18 +100,9 @@ export const usePrincipalDashboard = () => {
         totalRevenue: 45200 // Mock revenue for demo
       })
 
-      // --- MOCK FALLBACK ---
-      if (!principalApps || principalApps.length === 0) {
-        setApplications([
-          {
-            id: 'p-mock-1', student_id: 's1', status: 'principal_pending' as any, current_stage: 'principal', department: 'Mechanical',
-            is_submitted: true, created_at: new Date().toISOString(), document_ids: [],
-            student: { full_name: 'Robert Brown (Demo)', username: 'rbrown', student_uid: '2024ME0022' }
-          }
-        ])
-      } else {
-        setApplications(principalApps)
-      }
+      // Only show REAL applications in the final approvals queue.
+      // Mock data cannot be actioned against the DB.
+      setApplications(principalApps || [])
 
       setAllApplications(allApps || [])
 
