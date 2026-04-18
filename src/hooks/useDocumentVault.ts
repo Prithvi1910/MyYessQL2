@@ -48,16 +48,7 @@ export const useDocumentVault = () => {
 
       if (docError) throw docError;
 
-      const formattedDocs = (data || []).map(doc => {
-        const fileNameWithUuid = doc.file_url.split('/').pop() || '';
-        const fileName = fileNameWithUuid.split('-').slice(1).join('-') || 'Unnamed Document';
-        return {
-          ...doc,
-          file_name: fileName
-        };
-      });
-
-      setDocuments(formattedDocs);
+      setDocuments(data || []);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch documents');
     } finally {
@@ -98,6 +89,7 @@ export const useDocumentVault = () => {
           student_id: studentId,
           application_id: applicationId, // Link if exists, otherwise null
           file_url: publicUrl,
+          file_name: file.name, // Store original name
           file_type: file.type.includes('pdf') ? 'PDF' : 'IMAGE'
         })
         .select()
@@ -105,12 +97,7 @@ export const useDocumentVault = () => {
 
       if (dbError) throw dbError;
 
-      const formattedDoc = {
-        ...newDoc,
-        file_name: file.name
-      };
-
-      setDocuments(prev => [formattedDoc, ...prev]);
+      setDocuments(prev => [newDoc, ...prev]);
     } catch (err: any) {
       const msg = err.message || 'Failed to upload document';
       setError(msg);

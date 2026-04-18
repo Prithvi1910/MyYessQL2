@@ -883,11 +883,11 @@ section, .hero, .features, .auth {
 .dashboard-container {
   padding-top: 80px;
   padding-bottom: 20px;
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .welcome-section {

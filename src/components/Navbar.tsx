@@ -19,7 +19,7 @@ const Navbar: React.FC<NavbarProps> = ({
 
   const handleSignOut = async () => {
     await signOut();
-    navigate('/');
+    // The App component will naturally redirect us once the user state is null
   };
 
   return (

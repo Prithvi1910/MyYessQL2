@@ -38,6 +38,7 @@ create table public.documents (
   student_id uuid references public.profiles(id) on delete cascade not null,
   application_id uuid references public.applications(id) on delete set null,
   file_url text not null,
+  file_name text not null,
   file_type text,
   uploaded_at timestamp with time zone default now()
 );
