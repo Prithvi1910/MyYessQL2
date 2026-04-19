@@ -18,15 +18,23 @@ const PrincipalDashboardPanel: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
 
   const openReview = async (app: Application, readOnly = false) => {
-    const { data } = await supabase
-      .from('approvals')
-      .select('*')
-      .eq('application_id', app.id)
-      .order('updated_at', { ascending: true })
-    
-    setApprovals(data || [])
-    setSelectedApp(app)
-    setIsReadOnly(readOnly)
+    try {
+      const { data } = await supabase
+        .from('approvals')
+        .select('*')
+        .eq('application_id', app.id)
+        .order('updated_at', { ascending: true })
+      
+      setApprovals(data || [])
+      setSelectedApp(app)
+      setIsReadOnly(readOnly)
+    } catch (err) {
+      console.error("Failed to load review:", err)
+      // Fallback: open with empty approvals if fetch fails
+      setApprovals([])
+      setSelectedApp(app)
+      setIsReadOnly(readOnly)
+    }
   }
 
   if (isLoading && applications.length === 0 && !error) {
@@ -177,7 +185,7 @@ const PrincipalDashboardPanel: React.FC = () => {
                     <td className="mono">{student.student_uid}</td>
                     <td>{student.department || 'General'}</td>
                     <td>
-                      <span className={`role-badge ${student.role}`}>{student.role.toUpperCase()}</span>
+                      <span className={`role-badge ${student.role}`}>ACTIVE STUDENT</span>
                     </td>
                   </tr>
                 )) : (

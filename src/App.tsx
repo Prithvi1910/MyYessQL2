@@ -16,6 +16,7 @@ import StudentApplicationPage from './components/StudentApplicationPage';
 import DocumentVault from './components/DocumentVault';
 import StudentPortalLayout from './components/StudentPortalLayout';
 import StudentFinancesPage from './components/StudentFinancesPage';
+import CertificateVerificationPage from './components/CertificateVerificationPage';
 
 function App() {
   const { user, role, loading } = useAuth();
@@ -117,6 +118,8 @@ function App() {
               <AuthorityDashboard />
             </AuthorityRoute>
           } />
+
+          <Route path="/verify/:applicationId" element={<CertificateVerificationPage />} />
 
           <Route path="/unauthorized" element={
             <div className="error-page">

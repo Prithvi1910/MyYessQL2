@@ -50,18 +50,7 @@ export const usePrincipalDashboard = () => {
         console.error('Certificate queue error:', certError.message)
       }
 
-      setCertificateQueue(
-        certApps && certApps.length > 0
-          ? certApps
-          : [
-              {
-                id: 'cert-demo-1', student_id: 's1', status: 'approved' as any, current_stage: 'approved',
-                department: 'Computer Science', is_submitted: true,
-                created_at: new Date(Date.now() - 86400000).toISOString(), document_ids: [],
-                student: { full_name: 'Alice Johnson (Demo — No Real Cleared Students Yet)', username: 'alice', student_uid: '2023CS0001' }
-              }
-            ]
-      )
+      setCertificateQueue(certApps || [])
 
       // 4. Student Registry
       const { data: students } = await supabase
@@ -96,8 +85,8 @@ export const usePrincipalDashboard = () => {
       const rate = allApps?.length ? Math.round((completed / allApps.length) * 100) : 0
       setMetrics({
         activeStudents: students?.length || 0,
-        completionRate: rate || 72,
-        totalRevenue: 45200 // Mock revenue for demo
+        completionRate: rate,
+        totalRevenue: 0 // Financial integration pending
       })
 
       // Only show REAL applications in the final approvals queue.

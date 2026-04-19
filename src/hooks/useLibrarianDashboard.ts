@@ -69,37 +69,12 @@ export const useLibrarianDashboard = () => {
         .eq('is_submitted', true)
         .order('created_at', { ascending: false })
 
-      // --- Set real data first, then apply mock fallback if empty ---
-      setDues(
-        duesData && duesData.length > 0
-          ? (duesData as any[])
-          : [
-              { id: 'l-mock-1', student_id: 's1', department: 'Computer Science', amount: 350, status: 'pending', student: { full_name: 'Marcus Aurelius (Demo)', student_uid: '2024CS0055' } },
-              { id: 'l-mock-2', student_id: 's2', department: 'Mechanical', amount: 0, status: 'paid', student: { full_name: 'Isabella Ross (Demo)', student_uid: '2024ME0012' } }
-            ]
-      )
+      setDues(duesData || [])
+      setApplications(appsData || [])
+      setSystemLogs(logsData || [])
 
-      setApplications(
-        appsData && appsData.length > 0
-          ? (appsData as any[])
-          : [
-              {
-                id: 'l-app-1', student_id: 's1', status: 'librarian_pending' as any, current_stage: 'librarian', department: 'Computer Science',
-                is_submitted: true, created_at: new Date().toISOString(), document_ids: [],
-                student: { full_name: 'Marcus Aurelius (Demo)', student_uid: '2024CS0055', department: 'Computer Science', username: 'marcus' }
-              }
-            ]
-      )
-
-      setSystemLogs(
-        logsData && logsData.length > 0
-          ? (logsData as any[])
-          : [{ id: 'log-1', status: 'approved', updated_at: new Date().toISOString(), comment: 'Dues cleared.', application: { student: { full_name: 'Isabella Ross', student_uid: '2024ME0012' } } }]
-      )
-
-      // Always use live counts from DB
       setStats({
-        awaiting: counts.awaiting || (appsData?.length === 0 ? 1 : 0),
+        awaiting: counts.awaiting,
         approved: counts.approved,
         rejected: counts.rejected
       })

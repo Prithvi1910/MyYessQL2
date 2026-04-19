@@ -28,6 +28,9 @@ const ApplicationReviewDrawer: React.FC<ApplicationReviewDrawerProps> = ({
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
+  // Safety check to prevent crashes if application is not provided
+  if (!application) return null
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -74,18 +77,26 @@ const ApplicationReviewDrawer: React.FC<ApplicationReviewDrawerProps> = ({
     try {
       const actorId = (await supabase.auth.getUser()).data.user?.id
 
+      // 1. Find existing approval record to get its ID
+      const { data: existingApproval } = await supabase
+        .from('approvals')
+        .select('id')
+        .eq('application_id', application.id)
+        .eq('role', actorRole)
+        .maybeSingle()
+
       if (status === 'approved') {
-        // Use upsert so this works even if the approval row doesn't exist yet
         const { error: approvalError } = await supabase
           .from('approvals')
           .upsert({
+            id: existingApproval?.id, // Use ID if it exists to avoid constraint errors
             application_id: application.id,
             role: actorRole,
             status: 'approved',
             comment,
             actor_id: actorId,
             updated_at: new Date().toISOString()
-          }, { onConflict: 'application_id,role' })
+          })
 
         if (approvalError) throw approvalError
 
@@ -125,26 +136,36 @@ const ApplicationReviewDrawer: React.FC<ApplicationReviewDrawerProps> = ({
         await supabase
           .from('approvals')
           .upsert({
+            id: existingApproval?.id,
             application_id: application.id,
             role: actorRole,
             status: 'rejected',
             comment,
             actor_id: actorId,
             updated_at: new Date().toISOString()
-          }, { onConflict: 'application_id,role' })
+          })
 
         // 2. Reset the PREVIOUS stage's approval back to pending
         if (regression.resetRole) {
+          // Find the previous stage's approval ID
+          const { data: prevApproval } = await supabase
+            .from('approvals')
+            .select('id')
+            .eq('application_id', application.id)
+            .eq('role', regression.resetRole)
+            .maybeSingle()
+
           await supabase
             .from('approvals')
             .upsert({
+              id: prevApproval?.id,
               application_id: application.id,
               role: regression.resetRole,
               status: 'pending',
               comment: null,
               actor_id: null,
               updated_at: new Date().toISOString()
-            }, { onConflict: 'application_id,role' })
+            })
         }
 
         // 3. Regress the application stage
@@ -176,25 +197,29 @@ const ApplicationReviewDrawer: React.FC<ApplicationReviewDrawerProps> = ({
   const purpose = parsePurpose(application.purpose)
 
   const downloadDocument = async (doc: Document) => {
-    const path = doc.file_url.split('/').pop()
-    if (!path) return
-    
-    const { data, error } = await supabase.storage
-      .from('documents')
-      .download(path)
-    
-    if (error) {
-      console.error("Download error:", error)
-      return
-    }
+    try {
+      // Extract storage path from public URL
+      const path = doc.file_url.split('/documents/').pop();
+      if (!path) throw new Error('Invalid file URL');
+      
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .download(path)
+      
+      if (error) throw error;
 
-    const url = window.URL.createObjectURL(data)
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', doc.file_name)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
+      const url = window.URL.createObjectURL(data)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', doc.file_name)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err: any) {
+      console.error("Download error:", err)
+      alert(`Failed to download: ${err.message}`)
+    }
   }
 
   return (

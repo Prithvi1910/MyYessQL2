@@ -9,7 +9,7 @@ export interface CertificateData {
   certificateId: string;
 }
 
-export const generateCertificate = async (data: CertificateData) => {
+export const generateCertificate = async (data: CertificateData, returnBlob = false) => {
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
@@ -55,7 +55,6 @@ export const generateCertificate = async (data: CertificateData) => {
 
   // Verification QR Code
   // Since jsPDF doesn't directly support SVG, we use a canvas-based approach or just a placeholder for now
-  // For simplicity in this demo, I'll draw a square box representing the QR code
   doc.setDrawColor(0, 0, 0);
   doc.rect(20, 160, 30, 30);
   doc.setFontSize(8);
@@ -68,6 +67,10 @@ export const generateCertificate = async (data: CertificateData) => {
   doc.setFontSize(12);
   doc.text('REGISTRAR / PRINCIPAL', 220, 188, { align: 'center' });
   doc.text(`Issued on: ${data.issueDate}`, 220, 195, { align: 'center' });
+
+  if (returnBlob) {
+    return doc.output('blob');
+  }
 
   // Save the PDF
   doc.save(`Nexus_Certificate_${data.studentUid}.pdf`);

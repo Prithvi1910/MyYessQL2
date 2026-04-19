@@ -488,10 +488,27 @@ const StudentApplicationPage: React.FC = () => {
                 <div className="workflow-reminder">
                   <span className="label">WORKFLOW CHAIN:</span>
                   <ul className="mini-workflow">
-                    <li className="done">Librarian</li>
-                    <li className={application.current_stage === 'lab' ? 'active' : ''}>Lab Assistant</li>
-                    <li className={application.current_stage === 'hod' ? 'active' : ''}>HOD</li>
-                    <li className={application.current_stage === 'principal' ? 'active' : ''}>Principal</li>
+                    {['librarian', 'lab', 'hod', 'principal'].map((stage) => {
+                      const stageLabels: Record<string, string> = {
+                        librarian: 'Librarian',
+                        lab: 'Lab Assistant',
+                        hod: 'HOD',
+                        principal: 'Principal'
+                      };
+                      
+                      const stageOrder = ['librarian', 'lab', 'hod', 'principal'];
+                      const currentIndex = stageOrder.indexOf(application.current_stage);
+                      const stageIndex = stageOrder.indexOf(stage);
+                      
+                      const isDone = stageIndex < currentIndex || application.status === 'approved';
+                      const isActive = application.current_stage === stage && application.status !== 'approved';
+                      
+                      return (
+                        <li key={stage} className={`${isDone ? 'done' : ''} ${isActive ? 'active' : ''}`}>
+                          {stageLabels[stage]}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
 

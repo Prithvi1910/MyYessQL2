@@ -73,47 +73,9 @@ export const useLabDashboard = () => {
         .select('*, student:profiles(full_name, student_uid)')
         .eq('department', dept)
 
-      // --- MOCK FALLBACK: If DB is empty, provide demo content ---
-      if (!pending || pending.length === 0) {
-        setApplications([
-          {
-            id: 'mock-1', student_id: 's1', status: 'lab_pending' as any, current_stage: 'lab', department: dept,
-            is_submitted: true, created_at: new Date().toISOString(), document_ids: ['d1'],
-            student: { full_name: 'John Doe (Demo)', student_uid: '2024CS0001', department: dept, username: 'johndoe' }
-          },
-          {
-            id: 'mock-2', student_id: 's2', status: 'lab_pending' as any, current_stage: 'lab', department: dept,
-            is_submitted: true, created_at: new Date().toISOString(), document_ids: ['d1', 'd2'],
-            student: { full_name: 'Jane Smith (Demo)', student_uid: '2024CS0002', department: dept, username: 'janesmith' }
-          }
-        ])
-        counts.awaiting = 2
-      } else {
-        setApplications(pending as any[])
-      }
-
-      if (!cleared || cleared.length === 0) {
-        setClearedStudents([
-          {
-            id: 'mock-3', student_id: 's3', status: 'approved' as any, current_stage: 'hod', department: dept,
-            is_submitted: true, created_at: new Date(Date.now() - 86400000).toISOString(), document_ids: [],
-            student: { full_name: 'Alice Wong (Cleared)', student_uid: '2023CS0992', department: dept, username: 'alicew' }
-          }
-        ])
-        counts.approved = (counts.approved || 0) + 1
-      } else {
-        setClearedStudents(cleared as any[])
-      }
-
-      if (!duesData || duesData.length === 0) {
-        setLabDues([
-          { id: 'due-1', student_id: 's1', department: dept, amount: 250, status: 'pending', student: { full_name: 'John Doe (Demo)', student_uid: '2024CS0001' } },
-          { id: 'due-2', student_id: 's4', department: dept, amount: 500, status: 'paid', student: { full_name: 'Bob Ross (Demo)', student_uid: '2024CS0004' } }
-        ])
-      } else {
-        setLabDues(duesData)
-      }
-
+      setApplications(pending || [])
+      setClearedStudents(cleared || [])
+      setLabDues(duesData || [])
       setStats(counts)
 
     } catch (err: any) {

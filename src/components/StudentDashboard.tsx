@@ -1,16 +1,27 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { Award } from 'lucide-react';
 import ActivityStrip from './ActivityStrip';
 import DashboardCard from './DashboardCard';
 import AnimatedPipeline from './AnimatedPipeline';
 import { useStudentApplication } from '../hooks/useStudentApplication';
+import CertificateGenerator from './CertificateGenerator';
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
-  const { dues } = useStudentApplication();
+  const { dues, application, approvals, profile } = useStudentApplication();
 
   const pendingDues = dues.filter(d => d.status === 'pending');
   const totalPendingAmount = pendingDues.reduce((sum, d) => sum + d.amount, 0);
+
+  const isFullyApproved = application?.status === 'approved' || application?.current_stage === 'approved';
+
+  const getStatusCase = () => {
+    if (!application || !application.is_submitted) return 1;
+    if (isFullyApproved) return 3;
+    if (application.status?.includes('rejected')) return 4;
+    return 2;
+  };
 
   return (
     <div className="dashboard-container container" style={{ padding: '60px 40px' }}>
@@ -24,7 +35,7 @@ const StudentDashboard = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
         >
-          <ActivityStrip statusCase={2} />
+          <ActivityStrip statusCase={getStatusCase() as any} />
         </motion.div>
 
         <motion.div 
@@ -33,6 +44,26 @@ const StudentDashboard = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
         >
+          {isFullyApproved && (
+            <DashboardCard 
+              label="CERTIFICATE"
+              title="Official Clearance"
+              body="Your institutional clearance is complete. Download your verified digital certificate."
+              icon={<Award size={20} />}
+              status={
+                <CertificateGenerator 
+                  studentName={profile?.full_name || 'Student'}
+                  studentUid={profile?.student_uid || 'N/A'}
+                  department={profile?.department || 'General'}
+                  applicationId={application?.id || ''}
+                  completionDate={new Date().toLocaleDateString()}
+                />
+              }
+              cta=""
+              onClick={() => {}}
+            />
+          )}
+
           <DashboardCard 
             label="FINANCES"
             title="Resolution Center"
@@ -61,7 +92,7 @@ const StudentDashboard = () => {
             label="APPROVALS"
             title="Clearance Pipeline"
             body="Track your multi-stage approval progress across all departments."
-            status={<AnimatedPipeline />}
+            status={<AnimatedPipeline application={application} approvals={approvals} />}
             cta="View Full Pipeline →"
             onClick={() => navigate('/student/application')}
           />

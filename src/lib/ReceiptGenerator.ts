@@ -9,13 +9,14 @@ export interface ReceiptData {
   date: string;
 }
 
-export const generateReceipt = (data: ReceiptData) => {
+export const generateReceipt = (data: ReceiptData, returnBlob = false) => {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4'
   });
 
+  // ... (styling and content logic remains the same)
   // Border
   doc.setDrawColor(50, 50, 50);
   doc.setLineWidth(1);
@@ -90,6 +91,10 @@ export const generateReceipt = (data: ReceiptData) => {
   doc.setFontSize(9);
   doc.setFont('helvetica', 'italic');
   doc.text('This is an automatically generated digital receipt. No signature is required.', 105, 270, { align: 'center' });
+
+  if (returnBlob) {
+    return doc.output('blob');
+  }
 
   // Save PDF
   doc.save(`Nexus_Receipt_${data.transactionId}.pdf`);

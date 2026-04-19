@@ -64,9 +64,9 @@ export const useHodDashboard = () => {
       const totalStudents = allApps?.length || 0
       const totalCleared = allApps?.filter(a => a.status === 'approved')?.length || 0
       setMetrics({
-        totalStudents: totalStudents || 124,
-        totalCleared: totalCleared || 86,
-        pendingDues: (totalStudents - totalCleared) || 38
+        totalStudents: totalStudents,
+        totalCleared: totalCleared,
+        pendingDues: (totalStudents - totalCleared)
       })
 
       // 5. Escalations
@@ -92,27 +92,10 @@ export const useHodDashboard = () => {
         .order('updated_at', { ascending: false })
         .limit(10)
 
-      // --- MOCK FALLBACK ---
-      if (!hodApps || hodApps.length === 0) {
-        setApplications([
-          {
-            id: 'h-mock-1', student_id: 's1', status: 'hod_pending' as any, current_stage: 'hod', department: dept,
-            is_submitted: true, created_at: new Date().toISOString(), document_ids: [],
-            student: { full_name: 'David Miller (Demo)', username: 'dmiller', student_uid: '2024CS0011' }
-          }
-        ])
-        counts.pending = 1
-      } else {
-        setApplications(hodApps || [])
-      }
-
+      setApplications(hodApps || [])
       setAllDepartmentApplications(allApps || [])
-      setEscalations(escApps.length > 0 ? escApps : [
-        { id: 'e-1', student: { full_name: 'James Wilson (Demo)' } } as any
-      ])
-      setApprovalHistory(historyData?.length ? historyData : [
-        { id: 'l-1', status: 'approved', updated_at: new Date().toISOString(), comment: 'Clearance verified.', application: { student: { full_name: 'Sarah Jenkins', student_uid: '2024CS0022' } } }
-      ])
+      setEscalations(escApps)
+      setApprovalHistory(historyData || [])
       setStats({ awaiting: counts.pending, approved: counts.approved, rejected: counts.rejected })
 
     } catch (err: any) {

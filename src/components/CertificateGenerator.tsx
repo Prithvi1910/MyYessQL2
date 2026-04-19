@@ -22,6 +22,9 @@ const CertificateGenerator: React.FC<CertificateProps> = ({
     if (!certificateRef.current) return
 
     try {
+      // Provide immediate feedback
+      console.log('Generating certificate PDF...')
+      
       const canvas = await html2canvas(certificateRef.current, {
         scale: 2,
         useCORS: true,
@@ -38,9 +41,11 @@ const CertificateGenerator: React.FC<CertificateProps> = ({
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
       pdf.save(`Nexus_Clearance_${studentUid}.pdf`)
       
+      alert("Certificate downloaded successfully!")
       if (onComplete) onComplete()
-    } catch (error) {
+    } catch (error: any) {
       console.error('PDF Generation failed:', error)
+      alert(`Certificate generation failed: ${error.message || 'Please try again'}`)
     }
   }
 
